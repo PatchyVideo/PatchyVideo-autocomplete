@@ -12,5 +12,5 @@ autocomplete part of PatchyVideo
 */
   ```
 # Compile
-1. Download and compile latest gcc(version 10.0.0)
+1. [Download](https://github.com/gcc-mirror/gcc) and compile latest gcc(version 10.0.0)
 2. ```g++ -fconcepts -O3 -std=c++2a -o autocomplete autocomplete.cpp```
