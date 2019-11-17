@@ -697,9 +697,8 @@ inline void handle_request_delalias(output &out, input &content)
 *   POST /setword     word freq           return "" // works on both word/alias
 *   POST /delword     word                return "" // works on both word/alias
 *   POST /delalias    src                 return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,freq},...]
+*   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,category,freq},...]
 */
-
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request(output &out, input &content, RequestMethod method, std::string const &path, std::unordered_map<std::string, std::string> const &params)
@@ -747,7 +746,7 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 int main()
 try
 {
-	fast_io::server hd(8080, fast_io::sock::type::stream);
+	fast_io::server hd(5002, fast_io::sock::type::stream);
 	for (;;)
 		try
 	{
