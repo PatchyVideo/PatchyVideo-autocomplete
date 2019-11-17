@@ -658,15 +658,20 @@ inline void handle_request_addalias(output &out, input &content)
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_setword(output &out, input &content)
+inline void handle_request_setwords(output &out, input &content)
 {
 	std::string word;
 	std::uint32_t num{0};
-	fast_io::scan(content, word, num);
-	if (word.size() < 2)
-		return;
+	std::size_t n(0);
+	fast_io::scan(content, n);
+	for (std::size_t i(0); i != n; ++i)
+	{
+		fast_io::scan(content, word, num);
+		if (word.size() < 2)
+			return;
 
-	UpdateOrAddWordOrAlias(word, num);
+		UpdateOrAddWordOrAlias(word, num);
+	}
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
@@ -692,12 +697,12 @@ inline void handle_request_delalias(output &out, input &content)
 }
 
 /*
-*   POST /addwords    n word cat num ...  return "" // must be called before POST /bulkalias
-*   POST /addalias    n src dst ...       return ""
-*   POST /setword     word freq           return "" // works on both word/alias
-*   POST /delword     word                return "" // works on both word/alias
-*   POST /delalias    src                 return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,category,freq},...]
+*   POST /addwords    n word cat freq ...  return "" // must be called before POST /bulkalias
+*   POST /addalias    n src dst ...        return ""
+*   POST /setwords    n word freq          return "" // works on both word/alias
+*   POST /delword     word                 return "" // works on both word/alias
+*   POST /delalias    src                  return "" // remove alias link, not deleting
+*   GET  /?q=<prefix>&n=<max_words>        return JSON[{src,dst,category,freq},...]
 */
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
@@ -722,8 +727,8 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	case hash("/addalias"):
 	handle_request_addalias(response_body_stream, content);
 	break;
-	case hash("/setword"):
-	handle_request_setword(response_body_stream, content);
+	case hash("/setwords"):
+	handle_request_setwords(response_body_stream, content);
 	break;
 	case hash("/delword"):
 	handle_request_delword(response_body_stream, content);
