@@ -8,6 +8,6 @@ autocomplete part of PatchyVideo
 *   POST /setword     word freq           return "" // works on both word/alias
 *   POST /delword     word                return "" // works on both word/alias
 *   POST /delalias    src                 return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,freq},...]
+*   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,category,freq},...]
 */
   ```
