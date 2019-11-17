@@ -1,7 +1,7 @@
 # PatchyVideo-autocomplete
 autocomplete part of PatchyVideo
 # Usage
-`
+```C++
 /*
 *   POST /addwords    n word cat num ...  return "" // must be called before POST /bulkalias
 *   POST /addalias    n src dst ...       return ""
@@ -10,4 +10,4 @@ autocomplete part of PatchyVideo
 *   POST /delalias    src                 return "" // remove alias link, not deleting
 *   GET  /?q=<prefix>&n=<max_words>       return JSON[{src,dst,freq},...]
 */
-  `
+  ```
