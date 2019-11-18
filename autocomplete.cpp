@@ -32,6 +32,9 @@ template <typename T,
 	return iterable_wrapper{std::forward<T>(iterable)};
 }
 
+template <typename T>
+void ignore(T&&){}
+
 struct TrieNode
 {
 	union
@@ -286,7 +289,6 @@ TrieNode *FindLeafNode(std::string const &word)
 
 	std::uint32_t key{0};
 	ptrdiff_t remaining_length(word.cend() - word_iter);
-	std::uint32_t mask((1u << (remaining_length * 8)) - 1u);
 	for (ptrdiff_t i(0); i < remaining_length; ++i)
 		key |= static_cast<std::uint8_t>(word_iter[i]) << (i * 8);
 
@@ -294,6 +296,22 @@ TrieNode *FindLeafNode(std::string const &word)
 	if (found == cur->children.end())
 		return nullptr;
 	return found->child.get();
+}
+
+void UpdateWordDiff(std::string const& word, std::int32_t diff)
+{
+	auto leaf(FindLeafNode(word));
+	if (!leaf)
+		throw std::runtime_error("word not found");
+
+	leaf->freq += diff;
+	BackpropFreqLeaf(leaf);
+
+	for (TrieNode* const& src : leaf->alias_src)
+	{
+		src->freq += diff;
+		BackpropFreqLeaf(src);
+	}
 }
 
 void MakeOrAddWordAlias(std::string const &src, std::string const &dst)
@@ -627,6 +645,7 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_addwords(output &out, input &content)
 {
+	ignore(out);
 	std::string word, cat;
 	std::uint32_t num{0};
 	std::size_t n(0);
@@ -644,6 +663,7 @@ inline void handle_request_addwords(output &out, input &content)
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_addalias(output &out, input &content)
 {
+	ignore(out);
 	std::string src, dst;
 	std::size_t n(0);
 	fast_io::scan(content, n);
@@ -660,6 +680,7 @@ inline void handle_request_addalias(output &out, input &content)
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_setwords(output &out, input &content)
 {
+	ignore(out);
 	std::string word;
 	std::uint32_t num{0};
 	std::size_t n(0);
@@ -675,8 +696,27 @@ inline void handle_request_setwords(output &out, input &content)
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
+inline void handle_request_setwordsdiff(output &out, input &content)
+{
+	ignore(out);
+	std::string word;
+	std::int32_t diff{0};
+	std::size_t n(0);
+	fast_io::scan(content, n);
+	for (std::size_t i(0); i != n; ++i)
+	{
+		fast_io::scan(content, word, diff);
+		if (word.size() < 2)
+			return;
+
+		UpdateWordDiff(word, diff);
+	}
+}
+
+template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_delword(output &out, input &content)
 {
+	ignore(out);
 	std::string word;
 	fast_io::scan(content, word);
 	if (word.size() < 2)
@@ -688,6 +728,7 @@ inline void handle_request_delword(output &out, input &content)
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_delalias(output &out, input &content)
 {
+	ignore(out);
 	std::string src;
 	fast_io::scan(content, src);
 	if (src.size() < 2)
@@ -697,12 +738,13 @@ inline void handle_request_delalias(output &out, input &content)
 }
 
 /*
-*   POST /addwords    n word cat freq ...  return "" // must be called before POST /bulkalias
-*   POST /addalias    n src dst ...        return ""
-*   POST /setwords    n word freq          return "" // works on both word/alias
-*   POST /delword     word                 return "" // works on both word/alias
-*   POST /delalias    src                  return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>        return JSON[{src,dst,category,freq},...]
+*   POST /addwords       n word cat freq ...  return "" // must be called before POST /addalias
+*   POST /addalias       n src dst ...        return ""
+*   POST /setwords       n word freq ...      return "" // works on both word/alias
+*   POST /setwordsdiff   n word diff ...      return "" // works on both word/alias
+*   POST /delword        word                 return "" // works on both word/alias
+*   POST /delalias       src                  return "" // remove alias link, not deleting
+*   GET  /?q=<prefix>&n=<max_words>           return JSON[{src,dst,category,freq},...]
 */
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
@@ -729,6 +771,9 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	break;
 	case hash("/setwords"):
 	handle_request_setwords(response_body_stream, content);
+	break;
+	case hash("/setwordsdiff"):
+	handle_request_setwordsdiff(response_body_stream, content);
 	break;
 	case hash("/delword"):
 	handle_request_delword(response_body_stream, content);
