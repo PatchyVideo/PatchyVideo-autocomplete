@@ -522,6 +522,7 @@ inline constexpr std::uint64_t hash(std::string_view str)
 }
 
 auto response_header{"HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: "};
+auto response_header_json{"HTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8\nContent-Length: "};
 
 auto response404{"HTTP/1.1 404 Not Found\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
 auto response405{"HTTP/1.1 405 Method Not Allowed\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
@@ -787,7 +788,7 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	break;
 	}
 
-	print(out, response_header);
+	print(out, response_header_json);
 	print(out, response_body_stream.str().size());
 	print(out, "\n\n");
 	print(out, response_body_stream.str());
