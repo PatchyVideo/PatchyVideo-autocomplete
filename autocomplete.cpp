@@ -307,9 +307,9 @@ void UpdateWordDiff(std::string const& word, std::int32_t diff)
 	leaf->freq += diff;
 	BackpropFreqLeaf(leaf);
 
-	for (TrieNode* const& src : leaf->alias_src)
+	for (TrieNode* src : leaf->alias_src)
 	{
-		src->freq += diff;
+		src->freq = leaf->freq;
 		BackpropFreqLeaf(src);
 	}
 }
@@ -625,7 +625,7 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 		abort(400);
 	std::uint32_t max_words{10};
 	fast_io::istring_view isv(max_words_str);
-	fast_io::scan(isv, max_words);
+	scan(isv, max_words);
 	if (max_words > 100 || max_words == 0)
 		max_words = 10;
 
@@ -649,10 +649,10 @@ inline void handle_request_addwords(output &out, input &content)
 	std::string word, cat;
 	std::uint32_t num{0};
 	std::size_t n(0);
-	fast_io::scan(content, n);
+	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		fast_io::scan(content, word, cat, num);
+		scan(content, word, cat, num);
 		if (word.size() < 2)
 			return;
 
@@ -666,10 +666,10 @@ inline void handle_request_addalias(output &out, input &content)
 	ignore(out);
 	std::string src, dst;
 	std::size_t n(0);
-	fast_io::scan(content, n);
+	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		fast_io::scan(content, src, dst);
+		scan(content, src, dst);
 		if (src.size() < 2 || dst.size() < 2)
 			return;
 
@@ -684,10 +684,10 @@ inline void handle_request_setwords(output &out, input &content)
 	std::string word;
 	std::uint32_t num{0};
 	std::size_t n(0);
-	fast_io::scan(content, n);
+	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		fast_io::scan(content, word, num);
+		scan(content, word, num);
 		if (word.size() < 2)
 			return;
 
@@ -702,10 +702,10 @@ inline void handle_request_setwordsdiff(output &out, input &content)
 	std::string word;
 	std::int32_t diff{0};
 	std::size_t n(0);
-	fast_io::scan(content, n);
+	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		fast_io::scan(content, word, diff);
+		scan(content, word, diff);
 		if (word.size() < 2)
 			return;
 
@@ -718,7 +718,7 @@ inline void handle_request_delword(output &out, input &content)
 {
 	ignore(out);
 	std::string word;
-	fast_io::scan(content, word);
+	scan(content, word);
 	if (word.size() < 2)
 		return;
 
@@ -730,7 +730,7 @@ inline void handle_request_delalias(output &out, input &content)
 {
 	ignore(out);
 	std::string src;
-	fast_io::scan(content, src);
+	scan(content, src);
 	if (src.size() < 2)
 		return;
 
@@ -824,7 +824,7 @@ try
 
 			std::string raw_path;
 			fast_io::istring_view isv(path_version);
-			fast_io::scan(isv, raw_path);
+			scan(isv, raw_path);
 
 			auto const &[path, params] = parse_path(raw_path);
 
