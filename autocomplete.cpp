@@ -434,7 +434,9 @@ void DeleteWordOrAlias(std::string const &word)
 void AddWord(std::string const &word, std::string const &category, std::uint32_t freq)
 {
 	g_category_map[word] = category;
+	UpdateOrAddWordOrAlias(word, freq);
 
+	/*
 	auto word_iter(word.cbegin());
 	uint16_t root_key((static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
 
@@ -494,6 +496,7 @@ void AddWord(std::string const &word, std::string const &category, std::uint32_t
 		for (auto const &[ch, mask, nnode] : node->children)
 			node->freq = std::max(node->freq, nnode->freq);
 	}
+	*/
 }
 
 template<std::size_t x>
