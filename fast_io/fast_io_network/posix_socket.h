@@ -2,7 +2,8 @@
 
 namespace fast_io::sock::details
 {
-
+namespace
+{
 template<typename Func,typename ...Args>
 inline auto call_posix(Func&& func,Args&& ...args)
 {
@@ -99,4 +100,5 @@ inline void freeaddrinfo(Args&& ...args)
 using address_family = sa_family_t;
 using socket_type = int;
 inline constexpr auto invalid_socket(-1);
+}
 }

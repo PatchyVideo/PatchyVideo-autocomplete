@@ -31,7 +31,9 @@ concept output_stream_impl = stream_char_type_requirement<T>&&requires(T& out,ch
 template<typename T>
 concept mutex_stream_impl = requires(T& t)
 {
+	typename T::lock_guard_type;
 	mutex(t);
+	t.native_handle();
 };
 
 template<typename T>
@@ -97,19 +99,19 @@ template<typename T>
 concept stream = std::movable<T>&&(details::input_stream_impl<T>||details::output_stream_impl<T>);
 
 template<typename T>
+concept input_stream = stream<T>&&details::input_stream_impl<T>;
+
+template<typename T>
+concept output_stream = stream<T>&&details::output_stream_impl<T>;
+
+template<typename T>
 concept mutex_stream = stream<T>&&details::mutex_stream_impl<T>;
 
 template<typename T>
-concept mutex_input_stream = mutex_stream<T>&&details::input_stream_impl<T>;
+concept mutex_input_stream = mutex_stream<T>&&input_stream<T>;
 
 template<typename T>
-concept mutex_output_stream = mutex_stream<T>&&details::output_stream_impl<T>;
-
-template<typename T>
-concept input_stream = stream<T>&&details::input_stream_impl<T>&&!mutex_input_stream<T>;
-
-template<typename T>
-concept output_stream = stream<T>&&details::output_stream_impl<T>&&!mutex_output_stream<T>;
+concept mutex_output_stream = mutex_stream<T>&&output_stream<T>;
 
 template<typename T>
 concept random_access_stream = stream<T>&&details::random_access_stream_impl<T>;
@@ -125,6 +127,7 @@ concept character_output_stream = output_stream<T>&&details::character_output_st
 
 template<typename T>
 concept character_io_stream = character_input_stream<T>&&character_output_stream<T>;
+
 template<typename T>
 concept mutex_io_stream = mutex_input_stream<T>&&mutex_output_stream<T>;
 

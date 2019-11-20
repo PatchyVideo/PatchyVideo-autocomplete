@@ -57,6 +57,181 @@ inline constexpr void print_define(output& out,std::basic_string_view<typename o
 {
 	writes(out,str.data(),str.data()+str.size());
 }
+namespace details
+{
+template<input_stream input,typename ...Args>
+requires(scanable<input,Args>&&...)
+inline constexpr void normal_scan(input &in,Args&& ...args)
+{
+	(scan_define(in,std::forward<Args>(args)),...);
+}
+
+template<output_stream output,typename ...Args>
+requires(printable<output,Args>&&...)
+inline constexpr void normal_print(output &out,Args&& ...args)
+{
+	(print_define(out,std::forward<Args>(args)),...);
+}
+
+template<character_output_stream output,typename ...Args>
+requires(printable<output,Args>&&...)
+inline constexpr void normal_println(output &out,Args&& ...args)
+{
+	(print_define(out,std::forward<Args>(args)),...);
+	put(out,'\n');
+}
+
+template<input_stream input,typename ...Args>
+requires(readable<input,Args>&&...)
+inline constexpr void normal_read(input &in,Args&& ...args)
+{
+	(read_define(in,std::forward<Args>(args)),...);
+}
+
+template<output_stream output,typename ...Args>
+requires(writeable<output,Args>&&...)
+inline constexpr void normal_write(output &out,Args&& ...args)
+{
+	(write_define(out,std::forward<Args>(args)),...);
+}
+
+}
+
+template<input_stream input,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void scan(input &in,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_input_stream<input>)
+	{
+		typename input::lock_guard_type lg{mutex(in)};
+		scan(in.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+		normal_scan(in,std::forward<Args>(args)...);
+}
+
+template<input_stream input,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void read(input &in,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_input_stream<input>)
+	{
+		typename input::lock_guard_type lg{mutex(in)};
+		read(in.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+		normal_read(in,std::forward<Args>(args)...);
+}
+
+template<output_stream output,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void print(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		print(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else if constexpr(sizeof...(Args)==1||buffer_output_stream<output>)
+		normal_print(out,std::forward<Args>(args)...);
+	else
+		buffer_print(out,std::forward<Args>(args)...);
+}
+
+template<output_stream output,typename ...Args>
+inline constexpr void println(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		println(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else if constexpr(buffer_output_stream<output>||(sizeof...(Args)==1&&character_output_stream<output>))
+		normal_println(out,std::forward<Args>(args)...);
+	else
+		buffer_println(out,std::forward<Args>(args)...);
+}
+
+template<output_stream output,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void write(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		write(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else if constexpr(sizeof...(Args)==1||buffer_output_stream<output>)
+		normal_write(out,std::forward<Args>(args)...);
+	else
+		buffer_write(out,std::forward<Args>(args)...);
+}
+
+
+template<output_stream output,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void print_flush(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		print_flush(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+	{
+		if constexpr(sizeof...(Args)==1||buffer_output_stream<output>)
+			normal_print(out,std::forward<Args>(args)...);
+		else
+			buffer_print(out,std::forward<Args>(args)...);
+		flush(out);
+	}
+}
+
+template<output_stream output,typename ...Args>
+inline constexpr void println_flush(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		println_flush(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+	{
+		if constexpr(buffer_output_stream<output>&&(sizeof...(Args)==1&&character_output_stream<output>))
+			normal_println(out,std::forward<Args>(args)...);
+		else
+			buffer_println(out,std::forward<Args>(args)...);
+		flush(out);
+	}
+}
+
+template<output_stream output,typename ...Args>
+requires (sizeof...(Args)!=0)
+inline constexpr void write_flush(output &out,Args&& ...args)
+{
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		write_flush(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+	{
+		if constexpr(sizeof...(Args)==1||buffer_output_stream<output>)
+			normal_write(out,std::forward<Args>(args)...);
+		else
+			buffer_write(out,std::forward<Args>(args)...);
+		flush(out);
+	}
+}
+
 
 namespace details
 {
@@ -92,91 +267,52 @@ inline void fprint_impl(os &out,std::basic_string_view<typename os::char_type> f
 	print(out,std::forward<T>(cr));
 	fprint_impl(out,format,std::forward<Args>(args)...);
 }
-}
-
-
-template<input_stream input,typename ...Args>
-requires(scanable<input,Args>&&...)
-inline constexpr void scan(input &in,Args&& ...args)
-{
-	(scan_define(in,std::forward<Args>(args)),...);
-}
 
 template<output_stream output,typename ...Args>
 requires(printable<output,Args>&&...)
-inline constexpr void print(output &out,Args&& ...args)
+inline constexpr void normal_fprint(output &out,Args&& ...args)
 {
-	(print_define(out,std::forward<Args>(args)),...);
+	fprint_impl(out,std::forward<Args>(args)...);
 }
 
-template<character_output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void println(output &out,Args&& ...args)
-{
-	(print_define(out,std::forward<Args>(args)),...);
-	put(out,'\n');
+
 }
 
 template<output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void fprint(output &out,std::basic_string_view<typename output::char_type> format)
+requires (sizeof...(Args)!=0)
+inline constexpr void fprint(output &out,Args&& ...args)
 {
-	details::fprint_impl(out,format);
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		fprint(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else if constexpr(sizeof...(Args)==1||(buffer_output_stream<output>&&character_output_stream<output>))
+		normal_fprint(out,std::forward<Args>(args)...);
+	else
+		buffer_fprint(out,std::forward<Args>(args)...);
 }
 
 template<output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void fprint(output &out,std::basic_string_view<typename output::char_type> format,Args&& ...args)
+requires (sizeof...(Args)!=0)
+inline constexpr void fprint_flush(output &out,Args&& ...args)
 {
-	details::fprint_impl(out,format,std::forward<Args>(args)...);
+	using namespace details;
+	if constexpr(mutex_output_stream<output>)
+	{
+		typename output::lock_guard_type lg{mutex(out)};
+		fprint_flush(out.native_handle(),std::forward<Args>(args)...);
+	}
+	else
+	{
+		if constexpr(sizeof...(Args)==1||buffer_output_stream<output>)
+			normal_fprint(out,std::forward<Args>(args)...);
+		else
+			buffer_fprint(out,std::forward<Args>(args)...);
+		flush(out);
+	}
 }
 
-template<output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void print_flush(output &out,Args&& ...args)
-{
-	(print_define(out,std::forward<Args>(args)),...);
-	flush(out);
-}
-
-template<character_output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void println_flush(output &out,Args&& ...args)
-{
-	(print_define(out,std::forward<Args>(args)),...);
-	put(out,'\n');
-	flush(out);
-}
-
-template<output_stream output,typename ...Args>
-requires(printable<output,Args>&&...)
-inline constexpr void fprint_flush(output &out,std::basic_string_view<typename output::char_type> format,Args&& ...args)
-{
-	details::fprint_impl(out,format,std::forward<Args>(args)...);
-	flush(out);
-}
-
-
-template<input_stream input,typename ...Args>
-requires(readable<input,Args>&&...)
-inline constexpr void read(input &in,Args&& ...args)
-{
-	(read_define(in,std::forward<Args>(args)),...);
-}
-
-template<output_stream output,typename ...Args>
-requires(writeable<output,Args>&&...)
-inline constexpr void write(output &out,Args&& ...args)
-{
-	(write_define(out,std::forward<Args>(args)),...);
-}
-
-template<output_stream output,typename ...Args>
-requires(writeable<output,Args>&&...)
-inline constexpr void write_flush(output &out,Args&& ...args)
-{
-	(write_define(out,std::forward<Args>(args)),...);
-	flush(out);
-}
 
 }

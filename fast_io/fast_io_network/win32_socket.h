@@ -3,7 +3,8 @@
 
 namespace fast_io::sock::details
 {
-
+namespace
+{
 inline auto load_ws2_32()
 {
 	auto ws2_32_dll(LoadLibraryW(L"ws2_32.dll"));
@@ -158,7 +159,7 @@ std::int16_t;
 using socket_type = SOCKET;
 inline constexpr auto invalid_socket(INVALID_SOCKET);
 
-
+}
 }
 
 namespace fast_io

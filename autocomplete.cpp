@@ -35,6 +35,10 @@ template <typename T,
 template <typename T>
 void ignore(T&&){}
 
+// Possible optimizations :
+// 1. Custom allocator
+// 2. Struct of Array to utilize SIMD
+
 struct TrieNode
 {
 	union

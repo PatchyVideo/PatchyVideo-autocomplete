@@ -21,21 +21,21 @@ namespace details
 	{
 		return !(a==b);
 	}
-	inline constexpr bool operator==(dns_sentinal const& a, dns_iter const& b)
+	inline constexpr bool operator==(dns_sentinal, dns_iter const& b)
 	{
 		return b.ptr == nullptr;
 	}
-	inline constexpr bool operator==(dns_iter const& b, dns_sentinal const& a)
+	inline constexpr bool operator==(dns_iter const& b, dns_sentinal)
 	{
 		return b.ptr == nullptr;
 	}
-	inline constexpr bool operator!=(dns_sentinal const& a, dns_iter const& b)
+	inline constexpr bool operator!=(dns_sentinal, dns_iter const& b)
 	{
-		return !(b==a);
+		return b.ptr != nullptr;
 	}
-	inline constexpr bool operator!=(dns_iter const& b, dns_sentinal const& a)
+	inline constexpr bool operator!=(dns_iter const& b, dns_sentinal)
 	{
-		return !(b==a);
+		return b.ptr != nullptr;
 	}
 	inline address operator*(dns_iter const &a)
 	{

@@ -49,18 +49,18 @@ inline auto transmit(output& outp,input& inp,Args&& ...args)
 		else if constexpr(zero_copy_buffer_output_stream<output>&&zero_copy_input_stream<input>)
 		{
 			flush(outp);
-			return zero_copy_transmit(zero_copy_out_handle(outp),inp,std::forward<Args>(args)...);
+			return zero_copy_transmit(outp.native_handle(),inp,std::forward<Args>(args)...);
 		}
 		else if constexpr(zero_copy_output_stream<output>&&zero_copy_buffer_input_stream<input>)
 		{
-			idump(outp,outp);
-			return zero_copy_transmit(outp,zero_copy_in_handle(inp),std::forward<Args>(args)...);
+			idump(outp,inp);
+			return zero_copy_transmit(outp.native_handle(),std::forward<Args>(args)...);
 		}
 		else
 		{
 			idump(outp,inp);
 			flush(outp);
-			return zero_copy_transmit(zero_copy_out_handle(outp),zero_copy_in_handle(inp),std::forward<Args>(args)...);
+			return zero_copy_transmit(outp.native_handle(),inp.native_handle(),std::forward<Args>(args)...);
 		}
 	}
 	else
