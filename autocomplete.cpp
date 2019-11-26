@@ -814,15 +814,15 @@ try
 			auto request_header(scan_http_header(client_stream));
 			RequestMethod method;
 			std::string path_version;
-			if (request_header.count("GET"))
-			{
-				method = RequestMethod::GET;
-				path_version = request_header["GET"];
-			}
-			else if (request_header.count("POST"))
+			if (request_header.count("POST"))
 			{
 				method = RequestMethod::POST;
 				path_version = request_header["POST"];
+			}
+			else if (request_header.count("GET"))
+			{
+				method = RequestMethod::GET;
+				path_version = request_header["GET"];
 			}
 			else
 			{
