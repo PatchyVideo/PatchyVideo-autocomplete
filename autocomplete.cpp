@@ -681,7 +681,6 @@ inline void handle_request_addalias(output &out, input &content)
 	for (std::size_t i(0); i != n; ++i)
 	{
 		scan(content, src, dst, type);
-		println(fast_io::out, src, ":", type);
 		if (src.size() < 2 || dst.size() < 2 || !(type == 0 || type == 1))
 			return;
 
