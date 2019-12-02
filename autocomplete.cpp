@@ -38,6 +38,7 @@ void ignore(T&&){}
 // Possible optimizations :
 // 1. Custom allocator
 // 2. Struct of Array to utilize SIMD
+// 3. std::unordered_map<std::string, std::uint8_t> is stupid, need a cleverer method
 
 struct TrieNode
 {
@@ -65,6 +66,7 @@ struct TrieNode
 
 std::array<std::unique_ptr<TrieNode>, 256 * 256> g_tree;
 std::unordered_map<std::string, std::string> g_category_map;
+std::unordered_map<std::string, std::uint8_t> g_type_map;
 
 auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 {
@@ -136,7 +138,7 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 		{
 			auto tag(build_str(node));
 			auto category(g_category_map.at(tag));
-			if (node->alias_dst)
+			if (node->alias_dst && g_type_map[tag] == 1)
 				ret.emplace_back(tag, build_str(node->alias_dst), category, node->freq);
 			else
 				ret.emplace_back(tag, "", category, node->freq);
@@ -674,13 +676,16 @@ inline void handle_request_addalias(output &out, input &content)
 	ignore(out);
 	std::string src, dst;
 	std::size_t n(0);
+	std::uint8_t type;
 	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		scan(content, src, dst);
-		if (src.size() < 2 || dst.size() < 2)
+		scan(content, src, dst, type);
+		println(fast_io::out, src, ":", type);
+		if (src.size() < 2 || dst.size() < 2 || !(type == 0 || type == 1))
 			return;
 
+		g_type_map[src] = type;
 		MakeOrAddWordAlias(src, dst);
 	}
 }
@@ -747,7 +752,7 @@ inline void handle_request_delalias(output &out, input &content)
 
 /*
 *   POST /addwords       n word cat freq ...  return "" // must be called before POST /addalias
-*   POST /addalias       n src dst ...        return ""
+*   POST /addalias       n src dst type ...   return ""
 *   POST /setwords       n word freq ...      return "" // works on both word/alias
 *   POST /setwordsdiff   n word diff ...      return "" // works on both word/alias
 *   POST /delword        word                 return "" // works on both word/alias

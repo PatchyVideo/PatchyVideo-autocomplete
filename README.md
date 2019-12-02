@@ -4,7 +4,7 @@ autocomplete part of PatchyVideo
 ```C++
 /*
 *   POST /addwords       n word cat freq ...  return "" // must be called before POST /addalias
-*   POST /addalias       n src dst ...        return ""
+*   POST /addalias       n src dst type ...   return ""
 *   POST /setwords       n word freq ...      return "" // works on both word/alias
 *   POST /setwordsdiff   n word diff ...      return "" // works on both word/alias
 *   POST /delword        word                 return "" // works on both word/alias
