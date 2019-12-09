@@ -3,522 +3,21 @@
 #include "fast_io/fast_io_network.h"
 #include "fast_io/fast_io_device.h"
 
-#include <vector>
-#include <string>
-#include <array>
-#include <queue>
-#include <algorithm>
-#include <memory>
-
-template <typename T,
-	typename TIter = decltype(std::begin(std::declval<T>())),
-	typename = decltype(std::end(std::declval<T>()))>
-	constexpr auto enumerate(T &&iterable)
-{
-	struct iterator
-	{
-		size_t i;
-		TIter iter;
-		bool operator != (const iterator &other) const { return iter != other.iter; }
-		void operator ++ () { ++i; ++iter; }
-		auto operator * () const { return std::tie(i, *iter); }
-	};
-	struct iterable_wrapper
-	{
-		T iterable;
-		auto begin() { return iterator{0, std::begin(iterable)}; }
-		auto end() { return iterator{0, std::end(iterable)}; }
-	};
-	return iterable_wrapper{std::forward<T>(iterable)};
-}
-
-template <typename T>
-void ignore(T&&){}
-
-// Possible optimizations :
-// 1. Custom allocator
-// 2. Struct of Array to utilize SIMD
-// 3. std::unordered_map<std::string, std::uint8_t> is stupid, need a cleverer method
-
-struct TrieNode
-{
-	union
-	{
-		std::uint32_t ch{0};
-		char ch_[4];
-	};
-	std::uint32_t mask{0};
-	std::uint32_t freq{0};
-	TrieNode *parent{nullptr};
-
-	std::vector<TrieNode *> alias_src;
-	TrieNode *alias_dst{nullptr};
-
-	struct ChildNode
-	{
-		std::uint32_t ch{0};
-		std::uint32_t mask{0};
-		std::unique_ptr<TrieNode> child;
-	};
-
-	std::vector<ChildNode> children;
-};
-
-std::array<std::unique_ptr<TrieNode>, 256 * 256> g_tree;
-std::unordered_map<std::string, std::string> g_category_map;
-std::unordered_map<std::string, std::uint8_t> g_type_map;
-
-auto QueryWord(std::string const &prefix, std::uint32_t max_words)
-{
-	std::vector<std::tuple<std::string, std::string, std::string, std::uint32_t>> ret{};
-	ret.reserve(max_words);
-
-	auto prefix_iter(prefix.cbegin());
-	uint16_t root_key((static_cast<std::uint8_t>(prefix_iter[1]) << 8) | static_cast<std::uint8_t>(prefix_iter[0]));
-	std::string base_word(prefix.cbegin(), prefix.cbegin() + 2);
-
-	TrieNode *cur(g_tree[root_key].get());
-	if (!cur)
-		return ret;
-	prefix_iter += 2;
-
-	while (prefix.cend() - prefix_iter >= 4)
-	{
-		TrieNode *child{nullptr};
-		std::uint32_t key((static_cast<std::uint8_t>(prefix_iter[3]) << 24) | (static_cast<std::uint8_t>(prefix_iter[2]) << 16) | (static_cast<std::uint8_t>(prefix_iter[1]) << 8) | static_cast<std::uint8_t>(prefix_iter[0]));
-		for (auto const &[ch, mask, nnode] : cur->children)
-		{
-			if (key == ch)
-			{
-				child = nnode.get();
-				prefix_iter += 4;
-				break;
-			}
-		}
-		if (!child)
-			return ret;
-		else
-			cur = child;
-	}
-
-	auto cmp([](TrieNode *a, TrieNode *b) {
-		return a->freq < b->freq;
-	});
-
-	std::priority_queue<TrieNode *, std::vector<TrieNode *>, decltype(cmp)> q;
-	std::uint32_t key{0};
-	ptrdiff_t remaining_length(prefix.cend() - prefix_iter);
-	std::uint32_t mask((1u << (remaining_length * 8)) - 1u);
-	for (ptrdiff_t i(0); i < remaining_length; ++i)
-		key |= static_cast<std::uint8_t>(prefix_iter[i]) << (i * 8);
-	for (auto const &[ch, mask_, nnode] : cur->children)
-		if ((key & mask) == (ch & mask))
-			q.push(nnode.get());
-
-	auto build_str([](TrieNode *node) {
-		std::string s;
-		s.reserve(20);
-		for (; node; node = node->parent)
-		{
-			auto &ch(node->ch_);
-			for (std::size_t i(4); i--;)
-				if (ch[i])
-					s.push_back(ch[i]);
-		}
-		std::reverse(s.begin(), s.end());
-		return s;
-	});
-
-	while (!q.empty())
-	{
-		auto node(q.top());
-		q.pop();
-
-		if (node->mask != 0xFFFFFFFF)
-		{
-			auto tag(build_str(node));
-			auto category(g_category_map.at(tag));
-			if (node->alias_dst && g_type_map[tag] == 1)
-				ret.emplace_back(tag, build_str(node->alias_dst), category, node->freq);
-			else
-				ret.emplace_back(tag, "", category, node->freq);
-			if (ret.size() == max_words)
-				return ret;
-		}
-		else
-		{
-			for (auto const &[ch, mask_, nnode] : node->children)
-				q.push(nnode.get());
-		}
-	}
-
-	return ret;
-}
-
-inline void BackpropFreq(TrieNode *node)
-{
-	for (; node; node = node->parent)
-	{
-		node->freq = 0;
-		for (auto const &[ch, mask, nnode] : node->children)
-			node->freq = std::max(node->freq, nnode->freq);
-	}
-}
-
-inline void BackpropFreqLeaf(TrieNode *leaf)
-{
-	for (auto node(leaf->parent); node; node = node->parent)
-	{
-		node->freq = 0;
-		for (auto const &[ch, mask, nnode] : node->children)
-			node->freq = std::max(node->freq, nnode->freq);
-	}
-}
-
-TrieNode *UpdateOrAddWordOrAlias(std::string const &word, std::uint32_t freq)
-{
-	auto word_iter(word.cbegin());
-	uint16_t root_key((static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-
-	TrieNode *cur(g_tree[root_key].get());
-	if (!cur)
-	{
-		g_tree[root_key].reset(new TrieNode);
-		cur = g_tree[root_key].get();
-		cur->ch = root_key << 16;
-	}
-	word_iter += 2;
-
-	while (word.cend() - word_iter >= 4)
-	{
-		TrieNode *child{nullptr};
-		std::uint32_t key((static_cast<std::uint8_t>(word_iter[3]) << 24) | (static_cast<std::uint8_t>(word_iter[2]) << 16) | (static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-		for (auto const &[ch, mask, nnode] : cur->children)
-		{
-			if (key == ch)
-			{
-				child = nnode.get();
-				word_iter += 4;
-				break;
-			}
-		}
-		if (!child)
-		{
-			std::unique_ptr<TrieNode> nnode(new TrieNode);
-			nnode->ch = key;
-			nnode->mask = 0xFFFFFFFF;
-			nnode->parent = cur;
-			auto tmp(nnode.get());
-			cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-			cur = tmp;
-			word_iter += 4;
-		}
-		else
-			cur = child;
-	}
-
-	std::uint32_t key{0};
-	ptrdiff_t remaining_length(word.cend() - word_iter);
-	std::uint32_t mask((1u << (remaining_length * 8)) - 1u);
-	for (ptrdiff_t i(0); i < remaining_length; ++i)
-		key |= static_cast<std::uint8_t>(word_iter[i]) << (i * 8);
-
-	auto found(std::find_if(cur->children.begin(), cur->children.end(), [&key](auto const &a) {return a.ch == key; }));
-
-	if (found == cur->children.end())
-	{
-		std::unique_ptr<TrieNode> nnode(new TrieNode);
-		nnode->ch = key;
-		nnode->mask = mask;
-		nnode->parent = cur;
-		nnode->freq = freq;
-		auto tmp(nnode.get());
-		cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-		BackpropFreqLeaf(tmp);
-		return tmp;
-	}
-	else
-	{
-		if (found->child->alias_dst)
-		{
-			// alias
-			found->child->alias_dst->freq = freq;
-			for (TrieNode *&alias_src : found->child->alias_dst->alias_src)
-			{
-				alias_src->freq = freq;
-				BackpropFreqLeaf(alias_src);
-			}
-		}
-		else
-		{
-			// word
-			found->child->freq = freq;
-			for (TrieNode *&alias_src : found->child->alias_src)
-			{
-				alias_src->freq = freq;
-				BackpropFreqLeaf(alias_src);
-			}
-		}
-		BackpropFreq(cur);
-		return found->child.get();
-	}
-}
-
-TrieNode *FindLeafNode(std::string const &word)
-{
-	auto word_iter(word.cbegin());
-	uint16_t root_key((static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-
-	TrieNode *cur(g_tree[root_key].get());
-	if (!cur)
-		return nullptr;
-	word_iter += 2;
-
-	while (word.cend() - word_iter >= 4)
-	{
-		TrieNode *child{nullptr};
-		std::uint32_t key((static_cast<std::uint8_t>(word_iter[3]) << 24) | (static_cast<std::uint8_t>(word_iter[2]) << 16) | (static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-		for (auto const &[ch, mask, nnode] : cur->children)
-		{
-			if (key == ch)
-			{
-				child = nnode.get();
-				word_iter += 4;
-				break;
-			}
-		}
-		if (!child)
-			return nullptr;
-		else
-			cur = child;
-	}
-
-	std::uint32_t key{0};
-	ptrdiff_t remaining_length(word.cend() - word_iter);
-	for (ptrdiff_t i(0); i < remaining_length; ++i)
-		key |= static_cast<std::uint8_t>(word_iter[i]) << (i * 8);
-
-	auto found(std::find_if(cur->children.begin(), cur->children.end(), [&key](auto const &a) {return a.ch == key; }));
-	if (found == cur->children.end())
-		return nullptr;
-	return found->child.get();
-}
-
-void UpdateWordDiff(std::string const& word, std::int32_t diff)
-{
-	auto leaf(FindLeafNode(word));
-	if (!leaf)
-		throw std::runtime_error("word not found");
-
-	leaf->freq += diff;
-	BackpropFreqLeaf(leaf);
-
-	for (TrieNode* src : leaf->alias_src)
-	{
-		src->freq = leaf->freq;
-		BackpropFreqLeaf(src);
-	}
-}
-
-void MakeOrAddWordAlias(std::string const &src, std::string const &dst)
-{
-	auto src_leaf(FindLeafNode(src));
-	auto dst_leaf(FindLeafNode(dst));
-
-	if (!dst_leaf)
-		throw std::runtime_error("dst not found");
-
-	g_category_map[src] = g_category_map.at(dst);
-
-	// if dst is also alias, find the root word
-	while (dst_leaf->alias_dst)
-		dst_leaf = dst_leaf->alias_dst;
-
-	if (!src_leaf)
-		src_leaf = UpdateOrAddWordOrAlias(src, dst_leaf->freq);
-
-	dst_leaf->alias_src.emplace_back(src_leaf);
-	src_leaf->alias_dst = dst_leaf;
-	src_leaf->freq = dst_leaf->freq;
-
-	BackpropFreqLeaf(src_leaf);
-}
-
-
-void DeleteAlias(std::string const &word)
-{
-	auto cur(FindLeafNode(word));
-	if (!cur)
-		throw std::runtime_error("word not found");
-
-	if (!cur->alias_dst)
-		throw std::runtime_error("not an alias");
-
-	auto leaf(cur);
-	auto &list_of_src(leaf->alias_dst->alias_src);
-
-	g_category_map.erase(word);
-
-	list_of_src.erase(std::remove_if(list_of_src.begin(), list_of_src.end(), [&leaf](auto const &src) {return src == leaf; }), list_of_src.end());
-
-	auto key(cur->ch);
-	for (cur = cur->parent; cur; cur = cur->parent)
-	{
-		auto found = std::find_if(cur->children.begin(), cur->children.end(), [&key](auto const &a) {return a.ch == key; });
-		cur->children.erase(found);
-		if (cur->children.size() > 0)
-			break;
-		key = cur->ch;
-	}
-
-	BackpropFreq(cur);
-}
-
-void DeleteAliasLink(std::string const &src)
-{
-	auto cur(FindLeafNode(src));
-	if (!cur)
-		throw std::runtime_error("word not found");
-
-	if (!cur->alias_dst)
-		throw std::runtime_error("not an alias");
-
-	auto leaf(cur);
-	auto &list_of_src(leaf->alias_dst->alias_src);
-
-	list_of_src.erase(std::remove_if(list_of_src.begin(), list_of_src.end(), [&leaf](auto const &src) {return src == leaf; }), list_of_src.end());
-	cur->alias_dst = nullptr;
-	cur->freq = 0;
-
-	BackpropFreq(cur);
-}
-
-void DeleteWord(std::string const &word)
-{
-	auto cur(FindLeafNode(word));
-	if (!cur)
-		throw std::runtime_error("word not found");
-
-	if (cur->alias_dst)
-		throw std::runtime_error("not a word");
-
-	g_category_map.erase(word);
-
-	for (TrieNode *&src : cur->alias_src)
-	{
-		src->alias_dst = nullptr;
-		src->freq = 0;
-	}
-
-	auto key(cur->ch);
-	for (cur = cur->parent; cur; cur = cur->parent)
-	{
-		auto found = std::find_if(cur->children.begin(), cur->children.end(), [&key](auto const &a) {return a.ch == key; });
-		cur->children.erase(found);
-		if (cur->children.size() > 0)
-			break;
-		key = cur->ch;
-	}
-	BackpropFreq(cur);
-}
-
-void DeleteWordOrAlias(std::string const &word)
-{
-	auto cur(FindLeafNode(word));
-	if (!cur)
-		throw std::runtime_error("word not found");
-
-	if (cur->alias_dst)
-		// this is an alisa item
-		DeleteAlias(word);
-	else
-		// this is a word item
-		DeleteWord(word);
-
-}
-
-void AddWord(std::string const &word, std::string const &category, std::uint32_t freq)
-{
-	g_category_map[word] = category;
-	UpdateOrAddWordOrAlias(word, freq);
-
-	/*
-	auto word_iter(word.cbegin());
-	uint16_t root_key((static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-
-	TrieNode *cur(g_tree[root_key].get());
-	if (!cur)
-	{
-		g_tree[root_key].reset(new TrieNode);
-		cur = g_tree[root_key].get();
-		cur->ch = root_key << 16;
-	}
-	word_iter += 2;
-
-	while (word.cend() - word_iter >= 4)
-	{
-		TrieNode *child{nullptr};
-		std::uint32_t key((static_cast<std::uint8_t>(word_iter[3]) << 24) | (static_cast<std::uint8_t>(word_iter[2]) << 16) | (static_cast<std::uint8_t>(word_iter[1]) << 8) | static_cast<std::uint8_t>(word_iter[0]));
-		for (auto const &[ch, mask, nnode] : cur->children)
-		{
-			if (key == ch)
-			{
-				child = nnode.get();
-				word_iter += 4;
-				break;
-			}
-		}
-		if (!child)
-		{
-			std::unique_ptr<TrieNode> nnode(new TrieNode);
-			nnode->ch = key;
-			nnode->mask = 0xFFFFFFFF;
-			nnode->parent = cur;
-			auto tmp(nnode.get());
-			cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-			cur = tmp;
-			word_iter += 4;
-		}
-		else
-			cur = child;
-	}
-
-	std::uint32_t key{0};
-	ptrdiff_t remaining_length(word.cend() - word_iter);
-	std::uint32_t mask((1u << (remaining_length * 8)) - 1u);
-	for (ptrdiff_t i(0); i < remaining_length; ++i)
-		key |= static_cast<std::uint8_t>(word_iter[i]) << (i * 8);
-
-	std::unique_ptr<TrieNode> nnode(new TrieNode);
-	nnode->ch = key;
-	nnode->mask = mask;
-	nnode->parent = cur;
-	nnode->freq = freq;
-	cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-
-	for (auto node(cur); node; node = node->parent)
-	{
-		node->freq = 0;
-		for (auto const &[ch, mask, nnode] : node->children)
-			node->freq = std::max(node->freq, nnode->freq);
-	}
-	*/
-}
-
-template<std::size_t x>
-struct PrintSizeof;
-
-void print_result(std::vector<std::tuple<std::string, std::string, std::uint32_t>> const &ret)
-{
-	for (auto const &[src, dst, freq] : ret)
-	{
-		if (dst.size() > 0)
-			println(fast_io::out, src, " -> ", dst, "\t", freq);
-		else
-			println(fast_io::out, src, "\t\t", freq);
-	}
-}
-
+#include "tree.h"
+
+template<typename T>
+void ignore(T&&)
+{}
+
+/*
+*   POST /addtag         n tagid count cat ...  return ""
+*   POST /addword        n tagid word ...       return ""
+*   POST /setcount       n tagid count ...      return ""
+*   POST /setcountdiff   n tagid diff ...       return ""
+*   POST /deltag         tagid                  return ""
+*   POST /delword        word                   return ""
+*   GET  /?q=<prefix>&n=<max_words>             return JSON[{word,category,count},...]
+*/
 
 inline constexpr std::uint64_t hash(std::string_view str)
 {
@@ -631,7 +130,7 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 	std::string max_words_str("10");
 	if (params.count("n"))
 		max_words_str = params.at("n");
-	if (prefix.size() < 2)
+	if (prefix.size() < 1)
 		abort(400);
 	std::uint32_t max_words{10};
 	fast_io::istring_view isv(max_words_str);
@@ -639,13 +138,13 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 	if (max_words > 100 || max_words == 0)
 		max_words = 10;
 
-	//std::vector<std::tuple<std::string, std::string, std::uint32_t>>
+	//std::vector<Keywords *>
 	auto query_result(QueryWord(prefix, max_words));
 	print(out, "[");
 	for (std::size_t i(0); i != query_result.size(); ++i)
 	{
-		auto const &[src, dst, category, freq] = query_result[i];
-		print(out, "{\"src\":\"", src, "\",\"dst\":\"", dst, "\",\"category\":\"", category, "\",\"count\":", freq, "}");
+		auto const& key(*query_result[i]);
+		print(out, "{\"tag\":\"", key.keyword, "\",\"cat\":\"", g_tags[key.tagid]->category, "\",\"cnt\":\"", g_tags[key.tagid]->count, "\"}");
 		if (i != query_result.size() - 1)
 			print(out, ",");
 	}
@@ -653,76 +152,85 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_addwords(output &out, input &content)
+inline void handle_request_addtag(output &out, input &content)
 {
 	ignore(out);
-	std::string word, cat;
-	std::uint32_t num{0};
+	std::uint32_t tagid;
+	std::uint32_t count;
+	std::uint32_t cat;
 	std::size_t n(0);
 	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		scan(content, word, cat, num);
-		if (word.size() < 2)
-			return;
-
-		AddWord(word, cat, num);
+		scan(content, tagid, count, cat);
+		AddTag(tagid, count, cat);
 	}
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_addalias(output &out, input &content)
+inline void handle_request_addword(output &out, input &content)
 {
 	ignore(out);
-	std::string src, dst;
-	std::size_t n(0);
-	std::uint8_t type;
-	scan(content, n);
-	for (std::size_t i(0); i != n; ++i)
-	{
-		scan(content, src, dst, type);
-		if (src.size() < 2 || dst.size() < 2 || !(type == 0 || type == 1))
-			return;
-
-		g_type_map[src] = type;
-		MakeOrAddWordAlias(src, dst);
-	}
-}
-
-template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_setwords(output &out, input &content)
-{
-	ignore(out);
+	std::uint32_t tagid;
 	std::string word;
-	std::uint32_t num{0};
 	std::size_t n(0);
 	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		scan(content, word, num);
-		if (word.size() < 2)
+		scan(content, tagid, word);
+		if (word.size() < 2 || tagid >= g_tags.size())
 			return;
 
-		UpdateOrAddWordOrAlias(word, num);
+		AddKeyword(tagid, word);
 	}
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_setwordsdiff(output &out, input &content)
+inline void handle_request_setcount(output &out, input &content)
 {
 	ignore(out);
-	std::string word;
-	std::int32_t diff{0};
+	std::uint32_t tagid;
+	std::uint32_t count;
 	std::size_t n(0);
 	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		scan(content, word, diff);
-		if (word.size() < 2)
+		scan(content, tagid, count);
+		if (tagid >= g_tags.size())
 			return;
 
-		UpdateWordDiff(word, diff);
+		UpdateTagCount(tagid, count);
 	}
+}
+
+template<fast_io::character_output_stream output, fast_io::character_input_stream input>
+inline void handle_request_setcountdiff(output &out, input &content)
+{
+	ignore(out);
+	std::uint32_t tagid;
+	std::int32_t diff;
+	std::size_t n(0);
+	scan(content, n);
+	for (std::size_t i(0); i != n; ++i)
+	{
+		scan(content, tagid, diff);
+		if (tagid >= g_tags.size())
+			return;
+
+		UpdateTagCountDiff(tagid, diff);
+	}
+}
+
+template<fast_io::character_output_stream output, fast_io::character_input_stream input>
+inline void handle_request_deltag(output &out, input &content)
+{
+	ignore(out);
+	std::uint32_t tagid;
+	scan(content, tagid);
+	if (tagid >= g_tags.size())
+			return;
+
+	DeleteTag(tagid);
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
@@ -734,30 +242,8 @@ inline void handle_request_delword(output &out, input &content)
 	if (word.size() < 2)
 		return;
 
-	DeleteWordOrAlias(word);
+	DeleteKeyword(word);
 }
-
-template<fast_io::character_output_stream output, fast_io::character_input_stream input>
-inline void handle_request_delalias(output &out, input &content)
-{
-	ignore(out);
-	std::string src;
-	scan(content, src);
-	if (src.size() < 2)
-		return;
-
-	DeleteAliasLink(src);
-}
-
-/*
-*   POST /addwords       n word cat freq ...  return "" // must be called before POST /addalias
-*   POST /addalias       n src dst type ...   return ""
-*   POST /setwords       n word freq ...      return "" // works on both word/alias
-*   POST /setwordsdiff   n word diff ...      return "" // works on both word/alias
-*   POST /delword        word                 return "" // works on both word/alias
-*   POST /delalias       src                  return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>           return JSON[{src,dst,category,freq},...]
-*/
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request(output &out, input &content, RequestMethod method, std::string const &path, std::unordered_map<std::string, std::string> const &params)
@@ -768,35 +254,35 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	switch (method)
 	{
 	case RequestMethod::GET:
-	if (path != "/")
-		abort(404);
-	handle_request_q(response_body_stream, params);
-	break;
+		if (path != "/")
+			abort(404);
+		handle_request_q(response_body_stream, params);
+		break;
 	case RequestMethod::POST:
-	switch (path_hashed)
-	{
-	case hash("/addwords"):
-	handle_request_addwords(response_body_stream, content);
-	break;
-	case hash("/addalias"):
-	handle_request_addalias(response_body_stream, content);
-	break;
-	case hash("/setwords"):
-	handle_request_setwords(response_body_stream, content);
-	break;
-	case hash("/setwordsdiff"):
-	handle_request_setwordsdiff(response_body_stream, content);
-	break;
-	case hash("/delword"):
-	handle_request_delword(response_body_stream, content);
-	break;
-	case hash("/delalias"):
-	handle_request_delalias(response_body_stream, content);
-	break;
-	default:
-	abort(404);
-	}
-	break;
+		switch (path_hashed)
+		{
+		case hash("/addtag"):
+			handle_request_addtag(response_body_stream, content);
+			break;
+		case hash("/addword"):
+			handle_request_addword(response_body_stream, content);
+			break;
+		case hash("/setcount"):
+			handle_request_setcount(response_body_stream, content);
+			break;
+		case hash("/setcountdiff"):
+			handle_request_setcountdiff(response_body_stream, content);
+			break;
+		case hash("/deltag"):
+			handle_request_deltag(response_body_stream, content);
+			break;
+		case hash("/delword"):
+			handle_request_delword(response_body_stream, content);
+			break;
+		default:
+			abort(404);
+		}
+		break;
 	}
 
 	print(out, response_header_json);
