@@ -73,8 +73,17 @@ void AddTag(std::uint32_t id, std::uint32_t count, std::uint32_t category)
 		for (std::size_t i(0); i < shortage; ++i)
 			g_tags.emplace_back(nullptr);
 	}
-	std::unique_ptr<Tag> tag(new Tag{id, count, category});
-	g_tags[id] = std::move(tag);
+    if (g_tags[id].get() != nullptr)
+    {
+        auto& tag_obj(*g_tags[id].get());
+        tag_obj.count = count;
+        tag_obj.category = category;
+    }
+    else
+    {
+        std::unique_ptr<Tag> tag(new Tag{id, count, category});
+        g_tags[id] = std::move(tag);
+    }
 }
 
 void UpdateTagCategory(std::uint32_t id, std::uint32_t category)
