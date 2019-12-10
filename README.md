@@ -3,13 +3,13 @@ autocomplete part of PatchyVideo
 # Usage
 ```C++
 /*
-*   POST /addwords       n word cat freq ...  return "" // must be called before POST /addalias
-*   POST /addalias       n src dst type ...   return ""
-*   POST /setwords       n word freq ...      return "" // works on both word/alias
-*   POST /setwordsdiff   n word diff ...      return "" // works on both word/alias
-*   POST /delword        word                 return "" // works on both word/alias
-*   POST /delalias       src                  return "" // remove alias link, not deleting
-*   GET  /?q=<prefix>&n=<max_words>           return JSON[{src,dst,category,freq},...]
+*   POST /addtag         n tagid count cat ...  return ""
+*   POST /addword        n tagid word ...       return ""
+*   POST /setcount       n tagid count ...      return ""
+*   POST /setcountdiff   n tagid diff ...       return ""
+*   POST /deltag         tagid                  return ""
+*   POST /delword        word                   return ""
+*   GET  /?q=<prefix>&n=<max_words>             return JSON[{tag,cat,cnt},...]
 */
 ```
 # Compile
