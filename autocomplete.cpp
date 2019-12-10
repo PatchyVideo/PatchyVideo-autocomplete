@@ -144,7 +144,7 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 	for (std::size_t i(0); i != query_result.size(); ++i)
 	{
 		auto const& key(*query_result[i]);
-		print(out, "{\"tag\":\"", key.keyword, "\",\"cat\":\"", g_tags[key.tagid]->category, "\",\"cnt\":\"", g_tags[key.tagid]->count, "\"}");
+		print(out, "{\"tag\":\"", key.keyword, "\",\"cat\":", g_tags[key.tagid]->category, ",\"cnt\":", g_tags[key.tagid]->count, "}");
 		if (i != query_result.size() - 1)
 			print(out, ",");
 	}
