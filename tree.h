@@ -7,12 +7,16 @@
 #include <set>
 #include <bitset>
 
-/*
-* TODO: support multi-language
-*/
-
-template<std::size_t x>
-struct PrintSizeof;
+template<typename T>
+struct PrintSizeof
+{
+	template<std::size_t size>
+	struct PrintSizeof_impl;
+	PrintSizeof()
+	{
+		PrintSizeof_impl<sizeof(T)> a;
+	}
+};
 
 struct Keyword;
 
@@ -27,6 +31,10 @@ struct MemoryPool
 		pools.reserve(init_chunks);
 		allocate_chunk();
 	}
+	MemoryPool(MemoryPool const &a) = delete;
+	MemoryPool(MemoryPool &&a) = delete;
+	MemoryPool &operator=(MemoryPool const &a) = delete;
+	MemoryPool &operator=(MemoryPool &&a) = delete;
 	~MemoryPool() noexcept
 	{
 		try
@@ -112,7 +120,7 @@ std::array<TrieNode *, 256> g_querywords;
 
 void InitRootTrieNodes()
 {
-	std::size_t i = 0;
+	std::uint32_t i = 0;
 	for (auto &ele : g_querywords)
 	{
 		ele = new(g_trienodePool) TrieNode;
@@ -134,7 +142,8 @@ struct Tag
 	std::uint32_t id;
 	std::uint32_t count;
 	std::uint32_t category;
-	std::vector<Keyword *> keywords;
+	std::unordered_map<std::uint32_t, Keyword *> lang_keywords;
+	std::vector<Keyword *> alias_keywords;
 };
 
 std::vector<std::unique_ptr<Tag>> g_tags;
@@ -147,7 +156,7 @@ void AddTag(std::uint32_t id, std::uint32_t count, std::uint32_t category)
 		for (std::size_t i(0); i < shortage; ++i)
 			g_tags.emplace_back(nullptr);
 	}
-    g_tags[id].reset(new Tag{id, count, category});
+	g_tags[id].reset(new Tag{id, count, category});
 }
 
 void UpdateTagCategory(std::uint32_t id, std::uint32_t category)
@@ -159,17 +168,14 @@ void DeleteKeyword(std::string const &keyword);
 
 void DeleteTag(std::uint32_t id)
 {
-	auto const &keywords(g_tags[id].get()->keywords);
 	// remove all keywords
 	std::vector<std::string> tmp;
-	for (auto &kw : keywords)
-	{
+	for (auto const& kw : g_tags[id].get()->lang_keywords)
+		tmp.emplace_back(kw.second->keyword);
+	for (auto const &kw : g_tags[id].get()->alias_keywords)
 		tmp.emplace_back(kw->keyword);
-	}
 	for (auto &kw : tmp)
-	{
 		DeleteKeyword(kw);
-	}
 	g_tags[id].reset(nullptr);
 }
 
@@ -312,10 +318,16 @@ void DeleteQueryWord(TrieNode *leaf)
 
 std::vector<std::string> _get_all_suffix(std::string const &keyword);
 
-void AddKeyword(std::uint32_t tagid, std::string const &keyword)
+void AddKeyword(std::uint32_t tagid, std::string const &keyword, std::uint32_t lang = 0)
 {
-	if (g_keywords.count(keyword) > 0)
+	if (g_keywords.contains(keyword))
+	{
+		auto const &keyword_obj(g_keywords[keyword]);
+		auto &tag_obj(*g_tags[tagid]);
+		if (lang != 0) [[likely]]
+			tag_obj.lang_keywords[lang] = keyword_obj.get();
 		return;
+	}
 	auto const &&suffix(_get_all_suffix(keyword));
 	std::unique_ptr<Keyword> keyword_obj(new Keyword{tagid, keyword});
 	for (auto const &query : suffix)
@@ -324,7 +336,10 @@ void AddKeyword(std::uint32_t tagid, std::string const &keyword)
 		keyword_obj->query_words.emplace_back(trie_node_ptr);
 	}
 	auto &tag_obj(*g_tags[tagid]);
-	tag_obj.keywords.emplace_back(keyword_obj.get());
+	if (lang == 0)
+		tag_obj.alias_keywords.emplace_back(keyword_obj.get());
+	else [[likely]]
+		tag_obj.lang_keywords[lang] = keyword_obj.get();
 	g_keywords[keyword] = std::move(keyword_obj);
 }
 
@@ -334,9 +349,20 @@ void DeleteKeyword(std::string const &keyword)
 	//	return;
 	auto keyword_obj(g_keywords[keyword].get());
 	auto tag_obj(g_tags[keyword_obj->tagid].get());
-	auto &tag_keywords(tag_obj->keywords);
+
 	// remove from tag object
-	tag_keywords.erase(std::find_if(tag_keywords.begin(), tag_keywords.end(), [&keyword_obj](auto const &a) {return a == keyword_obj; }));
+	auto &tag_lang_keywords(tag_obj->lang_keywords);
+	auto lang_it(std::find_if(tag_lang_keywords.begin(), tag_lang_keywords.end(), [&keyword_obj](auto const &a) {return a.second == keyword_obj; }));
+	while (lang_it != tag_lang_keywords.end())
+	{
+		tag_lang_keywords.erase(lang_it);
+		lang_it = std::find_if(tag_lang_keywords.begin(), tag_lang_keywords.end(), [&keyword_obj](auto const &a) {return a.second == keyword_obj; });
+	}
+
+	auto &tag_alias_keywords(tag_obj->alias_keywords);
+	auto alias_it(std::find_if(tag_alias_keywords.begin(), tag_alias_keywords.end(), [&keyword_obj](auto const &a) {return a == keyword_obj; }));
+	if (alias_it != tag_alias_keywords.end())
+		tag_alias_keywords.erase(alias_it);
 	// remove all its query words
 	for (TrieNode *leaf : keyword_obj->query_words)
 	{
@@ -359,24 +385,114 @@ void UpdateTagCount(std::uint32_t id, std::uint32_t count)
 {
 	auto &tag_obj(*g_tags[id]);
 	tag_obj.count = count;
-	for (Keyword *kwd : tag_obj.keywords)
-	{
+	for (Keyword *kwd : tag_obj.alias_keywords)
 		UpdateKeyword(kwd, count);
-	}
+	for (auto const& kwd : tag_obj.lang_keywords)
+		UpdateKeyword(kwd.second, count);
 }
 
 void UpdateTagCountDiff(std::uint32_t id, std::int32_t diff)
 {
 	auto &tag_obj(*g_tags[id]);
 	tag_obj.count += diff;
-	for (Keyword *kwd : tag_obj.keywords)
-	{
+	for (Keyword *kwd : tag_obj.alias_keywords)
 		UpdateKeyword(kwd, tag_obj.count);
-	}
+	for (auto const &kwd : tag_obj.lang_keywords)
+		UpdateKeyword(kwd.second, tag_obj.count);
 }
 
-auto QueryWord(std::string const &prefix, std::uint32_t max_words)
+/*
+VALID_LANGUAGES = {
+	"NAL": "Not A Language (Alias)",
+	"CHS": "Chinese (Simplified)",
+	"CHT": "Chinese (Traditional)",
+	"CSY": "Czech",
+	"NLD": "Dutch",
+	"ENG": "English",
+	"FRA": "French",
+	"DEU": "German",
+	"HUN": "Hungarian",
+	"ITA": "Italian",
+	"JPN": "Japanese",
+	"KOR": "Korean",
+	"PLK": "Polish",
+	"PTB": "Portuguese (Brazil)",
+	"ROM": "Romanian",
+	"RUS": "Russian",
+	"ESP": "Spanish",
+	"TRK": "Turkish",
+	"VIN": "Vietnamese"
+}
+PREFERRED_LANGUAGE_MAP = {
+	'CHS': ['CHS', 'CHT', 'JPN', 'ENG'],
+	'CHT': ['CHT', 'JPN', 'CHS', 'ENG'],
+	'JPN': ['JPN', 'CHT', 'ENG', 'CHS'],
+	'ENG': ['ENG', 'JPN']
+}
+*/
+
+std::vector<std::string> const g_supported_languages = {
+	"NAL",
+	"CHS",
+	"CHT",
+	"CSY",
+	"NLD",
+	"ENG",
+	"FRA",
+	"DEU",
+	"HUN",
+	"ITA",
+	"JPN",
+	"KOR",
+	"PLK",
+	"PTB",
+	"ROM",
+	"RUS",
+	"ESP",
+	"TRK",
+	"VIN"
+};
+
+std::uint32_t GetLanguageIndex(std::string const &str)
 {
+	for (std::uint32_t i(0); i < g_supported_languages.size(); ++i)
+		if (g_supported_languages[i] == str)
+			return i;
+	return 0;
+}
+
+std::uint32_t operator ""_lang(char const *s, std::size_t len)
+{
+	std::string str;
+	str.assign(s, len);
+	return GetLanguageIndex(str);
+}
+
+std::vector<std::vector<std::uint32_t>> const g_lang_perference = {
+	{"NAL"_lang},
+	{"CHS"_lang, "CHT"_lang, "JPN"_lang, "ENG"_lang}, // CHS
+	{"CHT"_lang, "JPN"_lang, "CHS"_lang, "ENG"_lang}, // CHT
+	{"CSY"_lang},
+	{"NLD"_lang},
+	{"ENG"_lang, "JPN"_lang}, // ENG
+	{"FRA"_lang},
+	{"DEU"_lang},
+	{"HUN"_lang},
+	{"ITA"_lang},
+	{"JPN"_lang, "CHT"_lang, "ENG"_lang, "CHS"_lang}, // JPN
+	{"KOR"_lang},
+	{"PLK"_lang},
+	{"PTB"_lang},
+	{"ROM"_lang},
+	{"RUS"_lang},
+	{"ESP"_lang},
+	{"TRK"_lang},
+	{"VIN"_lang}
+};
+
+auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t user_language = 0)
+{
+	user_language = std::min(user_language, static_cast<std::uint32_t>(g_lang_perference.size()));
 	std::vector<Keyword *> ret{};
 	std::set<std::uint32_t> used_tags;
 	ret.reserve(max_words);
@@ -432,8 +548,37 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 			// we are at leaf
 			if (used_tags.count(node->keyword->tagid) > 0)
 				continue;
-			ret.emplace_back(node->keyword);
-			used_tags.emplace(node->keyword->tagid);
+			if (user_language == 0)
+			{
+				ret.emplace_back(node->keyword);
+				used_tags.emplace(node->keyword->tagid);
+			}
+			else [[likely]]
+			{
+				auto const &preference(g_lang_perference[user_language]);
+				auto const &tag_obj(g_tags[node->keyword->tagid]);
+				bool found(false);
+				for (std::uint32_t ul : preference)
+				{
+					if (tag_obj->lang_keywords.contains(ul))
+					{
+						auto const &keword_obj(tag_obj->lang_keywords[ul]);
+						std::string const &keyword(keword_obj->keyword);
+						if (keyword.find(prefix) != std::string::npos)
+						{
+							ret.emplace_back(keword_obj);
+							used_tags.emplace(node->keyword->tagid);
+							found = true;
+							break;
+						}
+					}
+				}
+				if (!found)
+				{
+					ret.emplace_back(node->keyword);
+					used_tags.emplace(node->keyword->tagid);
+				}
+			}
 			if (ret.size() == max_words)
 				return ret;
 		}

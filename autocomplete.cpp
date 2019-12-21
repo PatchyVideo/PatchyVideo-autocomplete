@@ -11,12 +11,12 @@ void ignore(T&&)
 
 /*
 *   POST /addtag         n tagid count cat ...  return ""
-*   POST /addword        n tagid word ...       return ""
+*   POST /addword        n tagid word lang ...  return ""
 *   POST /setcount       n tagid count ...      return ""
 *   POST /setcountdiff   n tagid diff ...       return ""
 *   POST /deltag         tagid                  return ""
 *   POST /delword        word                   return ""
-*   GET  /?q=<prefix>&n=<max_words>             return JSON[{word,category,count},...]
+*   GET  /?q=<prefix>&n=<max_words>&l=<lang>    return JSON[{word,category,count},...]
 */
 
 inline constexpr std::uint64_t hash(std::string_view str)
@@ -128,18 +128,24 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 {
 	std::string prefix(params.at("q"));
 	std::string max_words_str("10");
-	if (params.count("n"))
+	std::string user_language("0");
+	if (params.contains("n"))
 		max_words_str = params.at("n");
+	if(params.contains("l"))
+		user_language = params.at("l");
 	if (prefix.size() < 1)
 		abort(400);
 	std::uint32_t max_words{10};
+	std::uint32_t user_lang_index{0};
 	fast_io::istring_view isv(max_words_str);
 	scan(isv, max_words);
+	fast_io::istring_view isv_lang(user_language);
+	scan(isv_lang, user_lang_index);
 	if (max_words > 100 || max_words == 0)
 		max_words = 10;
 
 	//std::vector<Keywords *>
-	auto query_result(QueryWord(prefix, max_words));
+	auto query_result(QueryWord(prefix, max_words, user_lang_index));
 	print(out, "[");
 	for (std::size_t i(0); i != query_result.size(); ++i)
 	{
@@ -173,15 +179,16 @@ inline void handle_request_addword(output &out, input &content)
 	ignore(out);
 	std::uint32_t tagid;
 	std::string word;
+	std::string lang;
 	std::size_t n(0);
 	scan(content, n);
 	for (std::size_t i(0); i != n; ++i)
 	{
-		scan(content, tagid, word);
-		if (word.size() < 2 || tagid >= g_tags.size())
+		scan(content, tagid, word, lang);
+		if (word.size() < 2 || tagid >= g_tags.size() || lang.size() != 3)
 			return;
 
-		AddKeyword(tagid, word);
+		AddKeyword(tagid, word, GetLanguageIndex(lang));
 	}
 }
 
@@ -305,12 +312,12 @@ try
 			auto request_header(scan_http_header(client_stream));
 			RequestMethod method;
 			std::string path_version;
-			if (request_header.count("POST"))
+			if (request_header.contains("POST"))
 			{
 				method = RequestMethod::POST;
 				path_version = request_header["POST"];
 			}
-			else if (request_header.count("GET"))
+			else if (request_header.contains("GET"))
 			{
 				method = RequestMethod::GET;
 				path_version = request_header["GET"];
