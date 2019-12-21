@@ -294,6 +294,7 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 int main()
 try
 {
+	InitRootTrieNodes();
 	fast_io::server hd(5002, fast_io::sock::type::stream);
 	for (;;)
 		try

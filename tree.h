@@ -1,4 +1,3 @@
-
 #include <memory>
 #include <vector>
 #include <array>
@@ -8,17 +7,68 @@
 #include <set>
 #include <bitset>
 
-#include <iostream>
-
 /*
 * TODO: support multi-language
-* TODO: support arena allocation
 */
 
 template<std::size_t x>
 struct PrintSizeof;
 
 struct Keyword;
+
+template<typename T, std::size_t chunk_size = 1024, std::size_t init_chunks = 1024>
+struct MemoryPool
+{
+	std::vector<void *> pools;
+	std::size_t num_of_allocated_elements_in_current_chunk;
+	void *next_free_element;
+	MemoryPool() : num_of_allocated_elements_in_current_chunk(0), next_free_element(nullptr)
+	{
+		pools.reserve(init_chunks);
+		allocate_chunk();
+	}
+	~MemoryPool() noexcept
+	{
+		try
+		{
+			for (std::size_t i(0); i < pools.size(); ++i)
+			{
+				void *ptr(pools[i]);
+				T *all_elements(static_cast<T *>(ptr));
+				std::size_t chunk_length((i == pools.size() - 1) ? num_of_allocated_elements_in_current_chunk : chunk_size);
+				for (std::size_t j(0); j < chunk_length; ++j)
+				{
+					all_elements[j].~T();
+				}
+				delete[] static_cast<char *>(ptr);
+			}
+		}
+		catch (...)
+		{
+			;
+		}
+	}
+	void allocate_chunk()
+	{
+		std::size_t block_size(sizeof(T) * chunk_size);
+		void *new_chunk = static_cast<void *>(new char[block_size]);
+		num_of_allocated_elements_in_current_chunk = 0;
+		next_free_element = new_chunk;
+		pools.emplace_back(new_chunk);
+	}
+	void *allocate(size_t size)
+	{
+		auto ret(next_free_element);
+		if (++num_of_allocated_elements_in_current_chunk == chunk_size)
+			allocate_chunk();
+		else
+			next_free_element = static_cast<void *>(static_cast<char *>(next_free_element) + sizeof(T));
+		return ret;
+	}
+	void deallocate(void *ptr) {
+		; // this happens so rarely that I don't even care about it
+	}
+};
 
 struct TrieNode
 {
@@ -38,13 +88,37 @@ struct TrieNode
 	{
 		std::uint32_t ch{0};
 		std::uint32_t mask{0};
-		std::unique_ptr<TrieNode> child;
+		TrieNode *child;
 	};
 
 	std::vector<ChildNode> children;
 };
 
-std::array<std::unique_ptr<TrieNode>, 256> g_querywords;
+using TrieNodeMemoryPool = MemoryPool<TrieNode>;
+
+void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
+{
+	return pool.allocate(sz);
+}
+
+void operator delete(void *ptr, TrieNodeMemoryPool &pool)
+{
+	pool.deallocate(ptr);
+}
+
+static TrieNodeMemoryPool g_trienodePool;
+
+std::array<TrieNode *, 256> g_querywords;
+
+void InitRootTrieNodes()
+{
+	std::size_t i = 0;
+	for (auto &ele : g_querywords)
+	{
+		ele = new(g_trienodePool) TrieNode;
+		ele->ch = (i++) << 24;
+	}
+}
 
 struct Keyword
 {
@@ -73,17 +147,7 @@ void AddTag(std::uint32_t id, std::uint32_t count, std::uint32_t category)
 		for (std::size_t i(0); i < shortage; ++i)
 			g_tags.emplace_back(nullptr);
 	}
-    if (g_tags[id].get() != nullptr)
-    {
-        auto& tag_obj(*g_tags[id].get());
-        tag_obj.count = count;
-        tag_obj.category = category;
-    }
-    else
-    {
-        std::unique_ptr<Tag> tag(new Tag{id, count, category});
-        g_tags[id] = std::move(tag);
-    }
+    g_tags[id].reset(new Tag{id, count, category});
 }
 
 void UpdateTagCategory(std::uint32_t id, std::uint32_t category)
@@ -95,7 +159,7 @@ void DeleteKeyword(std::string const &keyword);
 
 void DeleteTag(std::uint32_t id)
 {
-	auto const& keywords(g_tags[id].get()->keywords);
+	auto const &keywords(g_tags[id].get()->keywords);
 	// remove all keywords
 	std::vector<std::string> tmp;
 	for (auto &kw : keywords)
@@ -106,7 +170,7 @@ void DeleteTag(std::uint32_t id)
 	{
 		DeleteKeyword(kw);
 	}
-	g_tags[id].release();
+	g_tags[id].reset(nullptr);
 }
 
 inline void BackpropFreq(TrieNode *node)
@@ -135,13 +199,13 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 	auto word_iter(word.cbegin());
 	std::uint8_t root_key(static_cast<std::uint8_t>(word_iter[0]));
 
-	TrieNode *cur(g_querywords[root_key].get());
-	if (!cur)
+	TrieNode *cur(g_querywords[root_key]);
+	/*if (!cur)
 	{
-		g_querywords[root_key].reset(new TrieNode);
-		cur = g_querywords[root_key].get();
+		g_querywords[root_key] = new(g_trienodePool) TrieNode;
+		cur = g_querywords[root_key];
 		cur->ch = root_key << 24;
-	}
+	}*/
 	word_iter += 1;
 
 	while (word.cend() - word_iter >= 4)
@@ -152,20 +216,19 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		{
 			if (key == ch)
 			{
-				child = nnode.get();
+				child = nnode;
 				word_iter += 4;
 				break;
 			}
 		}
 		if (!child)
 		{
-			std::unique_ptr<TrieNode> nnode(new TrieNode);
+			TrieNode *nnode(new(g_trienodePool) TrieNode);
 			nnode->ch = key;
 			nnode->mask = 0xFFFFFFFF;
 			nnode->parent = cur;
-			auto tmp(nnode.get());
-			cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-			cur = tmp;
+			cur->children.push_back({nnode->ch, nnode->mask, nnode});
+			cur = nnode;
 			word_iter += 4;
 		}
 		else
@@ -188,17 +251,16 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		{
 			// node for partial query word not exist
 			// add one
-			std::unique_ptr<TrieNode> nnode(new TrieNode);
+			TrieNode *nnode(new(g_trienodePool) TrieNode);
 			nnode->ch = key;
 			nnode->mask = mask;
 			nnode->parent = cur;
 			nnode->count = tag->count;
-			auto tmp(nnode.get());
-			cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-			cur = tmp;
+			cur->children.push_back({nnode->ch, nnode->mask, nnode});
+			cur = nnode;
 		}
 		else
-			cur = found->child.get();
+			cur = found->child;
 	}
 
 	auto keyword_already_exist(std::find_if(cur->children.begin(), cur->children.end(), [&keyword](auto const &a) {return a.child->keyword == keyword; }));
@@ -207,22 +269,21 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 	{
 		// keyword leaf not exist
 		// add keyword leaf
-		std::unique_ptr<TrieNode> nnode(new TrieNode);
+		TrieNode * nnode(new(g_trienodePool) TrieNode);
 		nnode->ch = 0;
 		nnode->mask = 0;
 		nnode->parent = cur;
 		nnode->count = tag->count;
 		nnode->keyword = keyword;
-		auto tmp(nnode.get());
-		cur->children.push_back({nnode->ch, nnode->mask, std::move(nnode)});
-		BackpropFreqLeaf(tmp);
-		return tmp;
+		cur->children.push_back({nnode->ch, nnode->mask, nnode});
+		BackpropFreqLeaf(nnode);
+		return nnode;
 	}
 	else
 	{
 		// keyword leaf already exist
 		// ignore
-		return keyword_already_exist->child.get();
+		return keyword_already_exist->child;
 	}
 
 }
@@ -255,14 +316,14 @@ void AddKeyword(std::uint32_t tagid, std::string const &keyword)
 {
 	if (g_keywords.count(keyword) > 0)
 		return;
-	auto suffix(_get_all_suffix(keyword));
+	auto const &&suffix(_get_all_suffix(keyword));
 	std::unique_ptr<Keyword> keyword_obj(new Keyword{tagid, keyword});
 	for (auto const &query : suffix)
 	{
 		auto trie_node_ptr(AddQueryWord(keyword_obj.get(), query));
 		keyword_obj->query_words.emplace_back(trie_node_ptr);
 	}
-	auto& tag_obj(*g_tags[tagid]);
+	auto &tag_obj(*g_tags[tagid]);
 	tag_obj.keywords.emplace_back(keyword_obj.get());
 	g_keywords[keyword] = std::move(keyword_obj);
 }
@@ -323,9 +384,9 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 	auto prefix_iter(prefix.cbegin());
 	uint8_t root_key(static_cast<std::uint8_t>(prefix_iter[0]));
 
-	TrieNode *cur(g_querywords[root_key].get());
-	if (!cur)
-		return ret;
+	TrieNode *cur(g_querywords[root_key]);
+	/*if (!cur)
+		return ret;*/
 	prefix_iter += 1;
 
 	while (prefix.cend() - prefix_iter >= 4)
@@ -336,7 +397,7 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 		{
 			if (key == ch)
 			{
-				child = nnode.get();
+				child = nnode;
 				prefix_iter += 4;
 				break;
 			}
@@ -359,21 +420,7 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 		key |= static_cast<std::uint8_t>(prefix_iter[i]) << (i * 8);
 	for (auto const &[ch, mask_, nnode] : cur->children)
 		if ((key & mask) == (ch & mask))
-			q.push(nnode.get());
-
-	auto build_str([](TrieNode *node) {
-		std::string s;
-		s.reserve(20);
-		for (; node; node = node->parent)
-		{
-			auto &ch(node->ch_);
-			for (std::size_t i(4); i--;)
-				if (ch[i])
-					s.push_back(ch[i]);
-		}
-		std::reverse(s.begin(), s.end());
-		return s;
-	});
+			q.push(nnode);
 
 	while (!q.empty())
 	{
@@ -393,7 +440,7 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words)
 		else
 		{
 			for (auto const &[ch, mask_, nnode] : node->children)
-				q.push(nnode.get());
+				q.push(nnode);
 		}
 	}
 
@@ -423,5 +470,5 @@ std::vector<std::string> _get_all_suffix(std::string const &keyword)
 			it += ones;
 		}
 	}
-	return ret;
+	return std::move(ret);
 }
