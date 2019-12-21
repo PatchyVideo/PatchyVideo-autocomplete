@@ -492,7 +492,7 @@ std::vector<std::vector<std::uint32_t>> const g_lang_perference = {
 
 auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t user_language = 0)
 {
-	user_language = std::min(user_language, static_cast<std::uint32_t>(g_lang_perference.size()));
+	user_language = std::min(user_language, static_cast<std::uint32_t>(g_lang_perference.size()) - 1);
 	std::vector<Keyword *> ret{};
 	std::set<std::uint32_t> used_tags;
 	ret.reserve(max_words);
