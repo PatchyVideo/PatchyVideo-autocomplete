@@ -61,7 +61,7 @@ struct MemoryPool
 		auto ret(next_free_element);
 		if (++num_of_allocated_elements_in_current_chunk == chunk_size)
 			allocate_chunk();
-		else
+		else [[likely]]
 			next_free_element = static_cast<void *>(static_cast<char *>(next_free_element) + sizeof(T));
 		return ret;
 	}
