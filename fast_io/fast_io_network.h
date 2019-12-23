@@ -8,6 +8,4 @@ namespace fast_io
 {
 using acceptor_buf = self_tie<basic_iobuf<acceptor>>;
 using client_buf = self_tie<basic_iobuf<client>>;
-using io_acceptor = self_tie<istack<acceptor>>;
-using io_client = self_tie<istack<client>>;
 }

@@ -6,38 +6,38 @@ namespace fast_io
 {
 namespace details
 {
-	struct dns_iter
+	struct dns_iterator
 	{
 		addrinfo *ptr;
 	};
 	struct dns_sentinal
 	{
 	};
-	inline constexpr bool operator==(dns_iter const& a, dns_iter const& b)
+	inline constexpr bool operator==(dns_iterator const& a, dns_iterator const& b)
 	{
 		return a.ptr == b.ptr;
 	}
-	inline constexpr bool operator!=(dns_iter const& a, dns_iter const& b)
+	inline constexpr bool operator!=(dns_iterator const& a, dns_iterator const& b)
 	{
 		return !(a==b);
 	}
-	inline constexpr bool operator==(dns_sentinal, dns_iter const& b)
+	inline constexpr bool operator==(dns_sentinal, dns_iterator const& b)
 	{
 		return b.ptr == nullptr;
 	}
-	inline constexpr bool operator==(dns_iter const& b, dns_sentinal)
+	inline constexpr bool operator==(dns_iterator const& b, dns_sentinal)
 	{
 		return b.ptr == nullptr;
 	}
-	inline constexpr bool operator!=(dns_sentinal, dns_iter const& b)
+	inline constexpr bool operator!=(dns_sentinal, dns_iterator const& b)
 	{
 		return b.ptr != nullptr;
 	}
-	inline constexpr bool operator!=(dns_iter const& b, dns_sentinal)
+	inline constexpr bool operator!=(dns_iterator const& b, dns_sentinal)
 	{
 		return b.ptr != nullptr;
 	}
-	inline address operator*(dns_iter const &a)
+	inline address operator*(dns_iterator const &a)
 	{
 		if (a.ptr->ai_family == AF_INET)
 		{
@@ -57,12 +57,12 @@ namespace details
 		}
 		throw std::runtime_error("unknown family");
 	}
-	inline constexpr dns_iter& operator++(dns_iter& a)
+	inline constexpr dns_iterator& operator++(dns_iterator& a)
 	{
 		a.ptr = a.ptr->ai_next;
 		return a;
 	}
-	inline constexpr dns_iter operator++(dns_iter& a, int)
+	inline constexpr dns_iterator operator++(dns_iterator& a, int)
 	{
 		auto temp(a);
 		++a;
@@ -120,7 +120,7 @@ using dns = basic_dns<fast_io::sock::family::unspec>;
 template<fast_io::sock::family fam>
 inline constexpr auto cbegin(basic_dns<fam> const& d)
 {
-	return details::dns_iter{d.get_result()};
+	return details::dns_iterator{d.get_result()};
 }
 
 template<fast_io::sock::family fam>
@@ -132,7 +132,7 @@ inline constexpr auto begin(basic_dns<fam> const& d)
 template<fast_io::sock::family fam>
 inline constexpr auto begin(basic_dns<fam> & d)
 {
-	return details::dns_iter{d.get_result()};
+	return details::dns_iterator{d.get_result()};
 }
 
 template<fast_io::sock::family fam>

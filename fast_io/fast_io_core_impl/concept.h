@@ -8,7 +8,6 @@ namespace fast_io
 namespace details
 {
 
-
 template<typename T>
 concept stream_char_type_requirement = requires(T&)
 {
@@ -16,15 +15,15 @@ concept stream_char_type_requirement = requires(T&)
 };
 
 template<typename T>
-concept input_stream_impl = stream_char_type_requirement<T>&&requires(T& in,char* b,char* e)
+concept input_stream_impl = stream_char_type_requirement<T>&&requires(T& in,typename T::char_type* b,typename T::char_type* e)
 {
-	reads(in,b,e);
+	receive(in,b,e);
 };
 
 template<typename T>
-concept output_stream_impl = stream_char_type_requirement<T>&&requires(T& out,char const* b,char const* e)
+concept output_stream_impl = stream_char_type_requirement<T>&&requires(T& out,typename T::char_type const* b,typename T::char_type const* e)
 {
-	{writes(out,b,e)};
+	{send(out,b,e)};
 	{flush(out)};
 };
 
@@ -33,14 +32,13 @@ concept mutex_stream_impl = requires(T& t)
 {
 	typename T::lock_guard_type;
 	mutex(t);
-	t.native_handle();
+	unlocked_handle(t);
 };
 
 template<typename T>
 concept character_input_stream_impl = requires(T& in)
 {
-	{get(in)};
-	{try_get(in)};
+	get(in);
 };
 
 template<typename T>
@@ -63,7 +61,7 @@ namespace dummy
 	};
 	inline void flush(dummy_output_stream&){}
 	template<std::contiguous_iterator Iter>
-	inline void writes(dummy_output_stream&,Iter,Iter){}
+	inline void send(dummy_output_stream&,Iter,Iter){}
 }
 
 template<typename T>
@@ -94,6 +92,7 @@ concept zero_copy_output_stream_impl = requires(T& out)
 	zero_copy_out_handle(out);
 };
 }
+
 
 template<typename T>
 concept stream = std::movable<T>&&(details::input_stream_impl<T>||details::output_stream_impl<T>);
@@ -180,10 +179,15 @@ concept printable=output_stream<output>&&requires(output& out,T&& t)
 };
 
 template<typename output,typename T>
+concept printlnable=output_stream<output>&&requires(output& out,T&& t)
+{
+	println_define(out,std::forward<T>(t));
+};
+
+template<typename output,typename T>
 concept writeable=output_stream<output>&&requires(output& out,T&& t)
 {
 	write_define(out,std::forward<T>(t));
 };
-
 
 }

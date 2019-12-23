@@ -12,7 +12,7 @@ namespace details
 inline constexpr int calculate_posix_open_mode(open::mode const &om)
 {
 	using namespace open;
-	std::size_t value(remove_ate(om).value);
+	std::size_t value(remove_ate_overlapped(om).value);
 	int mode(0);
 	if(value&binary.value)
 	{
@@ -134,7 +134,7 @@ public:
 };
 
 template<std::contiguous_iterator Iter>
-inline Iter reads(posix_io_handle& h,Iter begin,Iter end)
+inline Iter receive(posix_io_handle& h,Iter begin,Iter end)
 {
 	auto read_bytes(::read(h.native_handle(),std::to_address(begin),(end-begin)*sizeof(*begin)));
 	if(read_bytes==-1)
@@ -142,7 +142,7 @@ inline Iter reads(posix_io_handle& h,Iter begin,Iter end)
 	return begin+(read_bytes/sizeof(*begin));
 }
 template<std::contiguous_iterator Iter>
-inline Iter writes(posix_io_handle& h,Iter begin,Iter end)
+inline Iter send(posix_io_handle& h,Iter begin,Iter end)
 {
 	auto write_bytes(::write(h.native_handle(),std::to_address(begin),(end-begin)*sizeof(*begin)));
 	if(write_bytes==-1)
@@ -192,24 +192,40 @@ public:
 	using char_type = posix_io_handle::char_type;
 	using native_handle_type = posix_io_handle::native_handle_type;
 	template<typename ...Args>
+	requires requires(Args&& ...args)
+	{
+		{::open(std::forward<Args>(args)...)}->std::same_as<int>;
+	}
 	posix_file(native_interface_t,Args&& ...args):posix_io_handle(::open(std::forward<Args>(args)...))
 	{
 		if(native_handle()==-1)
 			throw std::system_error(errno,std::generic_category());
 	}
+	template<std::size_t om,perms pm>
+	posix_file(std::string_view file,open::interface_t<om>,perms_interface_t<pm>):posix_file(native_interface,file.data(),details::posix_file_openmode<om>::mode,static_cast<mode_t>(pm))
+	{
+		if constexpr (with_ate(open::mode(om)))
+			seek(*this,0,seekdir::end);
+	}
 	template<std::size_t om>
-	posix_file(std::string_view file,open::interface_t<om>):posix_file(native_interface,file.data(),details::posix_file_openmode<om>::mode,420)
+	posix_file(std::string_view file,open::interface_t<om>):posix_file(native_interface,file.data(),details::posix_file_openmode<om>::mode,static_cast<mode_t>(420))
+	{
+		if constexpr (with_ate(open::mode(om)))
+			seek(*this,0,seekdir::end);
+	}
+	template<std::size_t om>
+	posix_file(std::string_view file,open::interface_t<om>,perms pm):posix_file(native_interface,file.data(),details::posix_file_openmode<om>::mode,static_cast<mode_t>(pm))
 	{
 		if constexpr (with_ate(open::mode(om)))
 			seek(*this,0,seekdir::end);
 	}
 	//potential support modification prv in the future
-	posix_file(std::string_view file,open::mode const& m):posix_file(native_interface,file.data(),details::calculate_posix_open_mode(m),420)
+	posix_file(std::string_view file,open::mode const& m,perms pm=static_cast<perms>(420)):posix_file(native_interface,file.data(),details::calculate_posix_open_mode(m),static_cast<mode_t>(pm))
 	{
 		if(with_ate(m))
 			seek(*this,0,seekdir::end);
 	}
-	posix_file(std::string_view file,std::string_view mode):posix_file(file,fast_io::open::c_style(mode)){}
+	posix_file(std::string_view file,std::string_view mode,perms pm=static_cast<perms>(420)):posix_file(file,fast_io::open::c_style(mode),pm){}
 	~posix_file()
 	{
 		posix_io_handle::close_impl();
@@ -219,7 +235,7 @@ public:
 class posix_pipe_unique:public posix_io_handle
 {
 public:
-	using char_type = char;
+	using posix_io_handle::char_type;
 	using native_handle_type = int;
 	void close()
 	{
@@ -263,9 +279,6 @@ public:
 	{
 		return pipes;
 	}
-	void flush()
-	{
-	}
 	auto& in()
 	{
 		return pipes.front();
@@ -286,14 +299,14 @@ inline void swap(posix_pipe& a,posix_pipe& b) noexcept
 }
 
 template<std::contiguous_iterator Iter>
-inline Iter reads(posix_pipe& h,Iter begin,Iter end)
+inline Iter receive(posix_pipe& h,Iter begin,Iter end)
 {
-	return reads(h.in(),begin,end);
+	return receive(h.in(),begin,end);
 }
 template<std::contiguous_iterator Iter>
-inline Iter writes(posix_pipe& h,Iter begin,Iter end)
+inline Iter send(posix_pipe& h,Iter begin,Iter end)
 {
-	return writes(h.out(),begin,end);
+	return send(h.out(),begin,end);
 }
 
 inline void flush(posix_pipe&)
@@ -314,9 +327,6 @@ inline auto zero_copy_out_handle(posix_pipe& h)
 }
 #endif
 
-
-
-#ifndef __WINNT__
 using system_file = posix_file;
 using system_io_handle = posix_io_handle;
 using system_pipe_unique = posix_pipe_unique;
@@ -324,7 +334,6 @@ using system_pipe = posix_pipe;
 inline int constexpr native_stdin_number = 0;
 inline int constexpr native_stdout_number = 1;
 inline int constexpr native_stderr_number = 2;
-#endif
 #ifdef __linux__
 
 //zero copy IO for linux

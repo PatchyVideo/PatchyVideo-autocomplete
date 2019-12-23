@@ -668,7 +668,7 @@ inline void output_base_extension_number(output& out,basic_unsigned_extension<T>
 //lower: 97 :a 102 :f
 	if(!a)
 	{
-		put(out,'0');
+		put(out,0x30);
 		return;
 	}
 	std::array<typename output::char_type,sizeof(a)*512*8/base+3> v;
@@ -691,7 +691,7 @@ inline void output_base_extension_number(output& out,basic_unsigned_extension<T>
 		else
 			*--iter = static_cast<typename output::char_type>(rem+48);
 	}
-	writes(out,iter,v.data()+v.size());
+	send(out,iter,v.data()+v.size());
 }
 }
 
@@ -721,7 +721,7 @@ inline constexpr void input_base_number_phase2_extension(input& in,basic_unsigne
 	unsigned_char_type constexpr baseed(std::min(static_cast<unsigned_char_type>(base),static_cast<unsigned_char_type>(10)));
 	while(true)
 	{
-		unsigned_char_type ch(try_get(in).first);
+		unsigned_char_type ch(get<true>(in).first);
 		if((ch-=48)<baseed)
 		{
 			a*=base;
@@ -782,13 +782,13 @@ inline constexpr void scan_define(input& in,basic_unsigned_extension<T>& a)
 template<character_output_stream output,typename T>
 inline constexpr void write_define(output& out,basic_unsigned_extension<T> const& n)
 {
-	writes(out,std::addressof(n),std::addressof(n)+1);
+	send(out,std::addressof(n),std::addressof(n)+1);
 }
 
 template<character_input_stream input,typename T>
 inline constexpr void read_define(input& in,basic_unsigned_extension<T>& n)
 {
-	reads(in,std::addressof(n),std::addressof(n)+1);
+	receive(in,std::addressof(n),std::addressof(n)+1);
 }
 #ifdef __SIZEOF_INT128__
 using uint128_t = __uint128_t;

@@ -6,7 +6,7 @@
 
 namespace fast_io
 {
-using pipe = immediately_flush<io_wrapper<system_pipe>>;
+using pipe = io_wrapper<system_pipe>;
 
 using isystem_file = input_file_wrapper<system_file>;
 using osystem_file = output_file_wrapper<system_file>;
@@ -27,4 +27,8 @@ using obuf_mutex = basic_iomutex<obuf>;
 using iobuf_mutex = basic_iomutex<iobuf>;
 using istring_view_mutex = basic_iomutex<istring_view>;
 using ostring_mutex = basic_iomutex<ostring>;
+
+
+using dynamic_buf = basic_iobuf<dynamic_stream>;
+
 }

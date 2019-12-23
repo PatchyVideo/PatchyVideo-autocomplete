@@ -71,7 +71,7 @@ public:
 	}
 	constexpr std::pair<char_type,bool> mmtry_get() requires character_input_stream<T>
 	{
-		auto ch(try_get(ib));
+		auto ch(get<true>(ib));
 		if(ch.second)
 			return {0,true};
 		return {get_impl(ch.first),false};
@@ -101,13 +101,9 @@ public:
 		}
 		unsigned_native_char_type constexpr max_native_char_type(-1);
 		*ed |= max_native_char_type>>(native_char_bits-v_elements-1)<<(native_char_bits-v_elements);
-		writes(ib,ed,v.data()+v.size());
+		send(ib,ed,v.data()+v.size());
 	}
 };
-
-namespace ucs_details
-{
-}
 
 
 template<output_stream T,typename CharT>
@@ -121,36 +117,26 @@ inline constexpr void put(ucs<T,char_type>& uc,typename ucs<T,char_type>::char_t
 	uc.mmput(ch);
 }
 
-template<character_output_stream T,typename char_type,std::contiguous_iterator Iter>
-inline constexpr void writes(ucs<T,char_type>& uc,Iter b,Iter e)
+template<character_output_stream T,typename char_type,std::forward_iterator Iter>
+inline constexpr void send(ucs<T,char_type>& uc,Iter b,Iter e)
 {
-	auto pb(static_cast<char_type const*>(static_cast<void const*>(std::to_address(b))));
-	for(auto pi(pb),pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));pi!=pe;++pi)
-		uc.mmput(*pi);
+	define_send_by_put(uc,b,e);
 }
 
-template<character_input_stream T,typename char_type>
+template<bool err=false,character_input_stream T,typename char_type>
 inline constexpr auto get(ucs<T,char_type>& uc)
 {
-	return uc.mmget();
-}
-
-template<character_input_stream T,typename char_type>
-inline constexpr auto try_get(ucs<T,char_type>& uc)
-{
-	return uc.mmtry_get();
+	if constexpr(err)
+		return uc.mmtry_get();
+	else
+		return uc.mmget();
 }
 
 
-template<character_input_stream T,typename char_type,std::contiguous_iterator Iter>
-inline constexpr Iter reads(ucs<T,char_type>&uc,Iter b,Iter e)
+template<character_input_stream T,typename char_type,std::forward_iterator Iter>
+inline constexpr Iter receive(ucs<T,char_type>& uc,Iter b,Iter e)
 {
-	auto pb(static_cast<char_type*>(static_cast<void*>(std::to_address(b))));
-	auto pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));
-	auto pi(pb);
-	for(;pi!=pe;++pi)
-		*pi=uc.mmget();
-	return b+(pi-pb)*sizeof(char_type)/sizeof(*b);
+	return define_receive_by_get(uc,b,e);
 }
 
 template<typename T>
@@ -176,7 +162,7 @@ inline void in_place_ucs_to_utf8(std::string& v,std::basic_string_view<T> view)
 {
 	v.clear();
 	ucs<basic_ostring<std::string>,T> uv(std::move(v));
-	writes(uv,view.cbegin(),view.cend());
+	send(uv,view.cbegin(),view.cend());
 	v=std::move(uv.native_handle().str());
 }
 
@@ -184,7 +170,7 @@ template<typename T>
 inline std::string ucs_to_utf8(std::basic_string_view<T> view)
 {
 	ucs<basic_ostring<std::string>,T> uv;
-	writes(uv,view.cbegin(),view.cend());
+	send(uv,view.cbegin(),view.cend());
 	return std::move(uv.native_handle().str());
 }
 }

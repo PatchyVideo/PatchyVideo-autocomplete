@@ -23,7 +23,7 @@ public:
 template<output_stream output,typename ostr>
 inline constexpr void flush(basic_sync<output,ostr>& sync)
 {
-	writes(sync.native_handle(),sync.buffer().str().cbegin(),sync.buffer().str().cend());
+	send(sync.native_handle(),sync.buffer().str().cbegin(),sync.buffer().str().cend());
 	sync.buffer().clear();
 }
 
@@ -46,9 +46,9 @@ inline constexpr auto osize(basic_sync<output,ostr>& sync)
 }
 
 template<output_stream output,typename ostr,std::contiguous_iterator Iter>
-inline constexpr void writes(basic_sync<output,ostr>& sync,Iter cbegin,Iter cend)
+inline constexpr void send(basic_sync<output,ostr>& sync,Iter cbegin,Iter cend)
 {
-	writes(sync.buffer(),cbegin,cend);
+	send(sync.buffer(),cbegin,cend);
 }
 template<output_stream output,typename ostr>
 inline constexpr void put(basic_sync<output,ostr>& sync,typename output::char_type ch)
@@ -65,25 +65,17 @@ inline constexpr auto seek(basic_sync<output,ostr>& sync,Args&& ...args)
 }
 
 template<io_stream input,typename ostr,std::contiguous_iterator Iter>
-inline constexpr Iter reads(basic_sync<input,ostr>& sync,Iter begin,Iter end)
+inline constexpr Iter receive(basic_sync<input,ostr>& sync,Iter begin,Iter end)
 {
 	flush(sync);
-	return reads(sync.native_handle(),begin,end);
+	return receive(sync.native_handle(),begin,end);
 }
-template<io_stream input,typename ostr>
+template<bool err=false,io_stream input,typename ostr>
 requires character_input_stream<input>
 inline constexpr auto get(basic_sync<input,ostr>& sync)
 {
 	flush(sync);
-	return get(sync.native_handle());
-}
-
-template<io_stream input,typename ostr>
-requires character_input_stream<input>
-inline constexpr auto try_get(basic_sync<input,ostr>& sync)
-{
-	flush(sync);
-	return try_get(sync.native_handle());
+	return get<err>(sync.native_handle());
 }
 
 template<output_stream output,typename ostr>

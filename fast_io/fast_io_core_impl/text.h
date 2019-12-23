@@ -13,15 +13,29 @@ template<character_input_stream T>
 struct text_view_interal_variable<T>
 {
 	bool state=false;
-	typename T::char_type internal_character = 0;
+	typename T::char_type internal_character{};
 };
 
 }
+namespace details
+{
+enum class operating_system
+{
+	win32,
+	posix,
+#if defined(__WINNT__) || defined(_MSC_VER)
+	native=win32,
+#else
+	native=posix
+#endif
+};
+}
 
-template<typename T>
+template<typename T,bool sys=false>
 requires character_input_stream<T>||character_output_stream<T>
 class text_view
 {
+public:
 	T ib;
 	details::text_view_interal_variable<T> state;
 public:
@@ -35,137 +49,146 @@ public:
 	{
 		return ib;
 	}
-	constexpr inline char_type mmget() requires character_input_stream<T>
+};
+/*
+template<character_input_stream T,bool sys>
+constexpr inline auto get(text_view<T,sys>& input)
+{
+	if(input.state.state)
 	{
-		if(state.state)
-		{
-			state.state=false;
-			return state.internal_character;
-		}
-		auto ch(get(ib));
-		if(ch=='\r')
-		{
-			auto internal(try_get(ib));
-			if(internal.second)
-				return ch;
-			if(internal.first=='\n')
-				return '\n';
-			state.state=true;
-			state.internal_character=internal.first;
-		}
-		return ch;
+		input.state.state=false;
+		return input.state.internal_character;
 	}
-	constexpr inline std::pair<char_type,bool> mmtry_get() requires character_input_stream<T>
+	auto ch(get(input.native_handle()));
+	if(ch==0xD)
 	{
-		if(state.state)
-		{
-			state.state=false;
-			return {state.internal_character,false};
-		}
-		auto ch(try_get(ib));
+		auto internal(try_get(input.native_handle()));
+		if(internal.second)
+			return ch;
+		if(internal.first==0xA)
+			return internal.first;
+		input.state.state=true;
+		input.state.internal_character=internal.first;
+	}
+	return ch;
+}
+*/
+template<bool err=false,character_input_stream T,bool sys>
+constexpr inline auto get(text_view<T,sys>& input)
+{
+	if(input.state.state)
+	{
+		input.state.state=false;
+		if constexpr(err)
+			return std::pair<typename T::char_type,bool>{input.state.internal_character,false};
+		else
+			return input.state.internal_character;
+	}
+	auto ch(get<err>(input.native_handle()));
+	if constexpr(err)
+	{
 		if(ch.second)
-			return {0,true};
-		if(ch.first=='\r')
+			return std::pair<typename T::char_type,bool>{0,true};
+		if(ch.first==0xD)
 		{
-			auto internal(try_get(ib));
+			auto internal(get<true>(input.native_handle()));
 			if(internal.second)
 				return ch;
-			if(internal.first=='\n')
+			if(internal.first==0xA)
 				return internal;
-			state.state=true;
-			state.internal_character=internal.first;
+			input.state.state=true;
+			input.state.internal_character=internal.first;
 		}
-		return ch;
 	}
-	template<std::contiguous_iterator Iter>
-	constexpr inline Iter mmreads(Iter b,Iter e)
-		requires character_input_stream<T>
+	else
 	{
-		auto pb(static_cast<char_type*>(static_cast<void*>(std::to_address(b))));
-		auto pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));
-		auto pi(pb);
-		for(;pi!=pe;++pi)
-			*pi=mmget();
-		return b+(pi-pb)*sizeof(char_type)/sizeof(*b);
+		if(ch==0xD)
+		{
+			auto internal(get<true>(input.native_handle()));
+			if(internal.second)
+				return ch;
+			if(internal.first==0xA)
+				return internal.first;
+			input.state.state=true;
+			input.state.internal_character=internal.first;
+		}
 	}
-	constexpr inline void mmput(char_type ch)	requires character_output_stream<T>
-	{
-		if(ch=='\n')
-			put(ib,'\r');
-		put(ib,ch);
-	}
-	template<std::contiguous_iterator Iter>
-	constexpr inline void mmwrites(Iter b,Iter e)
-		requires character_output_stream<T>
+	return ch;
+}
+
+template<character_input_stream T,bool sys,std::contiguous_iterator Iter>
+constexpr inline Iter receive(text_view<T,sys>& input,Iter b,Iter e)
+{
+	return define_receive_by_get(input,b,e);
+}
+
+template<character_output_stream T,bool sys>
+constexpr inline void put(text_view<T,sys>& output,typename text_view<T,sys>::char_type ch)
+{
+	if constexpr((!sys)||details::operating_system::win32==details::operating_system::native)
+		if(ch==0xA)
+			put(output.ib,0xD);
+	put(output.ib,ch);
+}
+
+template<character_output_stream T,bool sys,std::contiguous_iterator Iter>
+constexpr inline void send(text_view<T,sys>& output,Iter b,Iter e)
+{
+	using char_type = T::char_type;
+	if constexpr(sys&&details::operating_system::win32!=details::operating_system::native)
+		send(output,b,e);
+	else
 	{
 		auto pb(static_cast<char_type const*>(static_cast<void const*>(std::to_address(b))));
 		auto last(pb);
 		auto pi(pb),pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));
 		for(;pi!=pe;++pi)
-			if(*pi=='\n')
+			if(*pi==0xA)
 			{
-				if(last!=pi)
-					writes(ib,last,pi-1);
-				put(ib,'\r');
-				put(ib,'\n');
-				last=pi+1;
+				send(output.ib,last,pi);
+				put(output.ib,0xD);
+				last=pi;
 			}
-		writes(ib,last,pe);
+		send(output.ib,last,pe);
 	}
-};
-
-template<stream srm>
-text_view(srm&&) -> text_view<srm>;
-
-template<character_input_stream T>
-constexpr inline auto get(text_view<T>& input)
-{
-	return input.mmget();
 }
 
-template<character_input_stream T>
-constexpr inline auto try_get(text_view<T>& input)
+template<character_output_stream T,bool sys>
+constexpr inline void flush(text_view<T,sys>& output)
 {
-	return input.mmtry_get();
+	flush(output.ib);
 }
 
-template<character_input_stream T,std::contiguous_iterator Iter>
-constexpr inline Iter reads(text_view<T>& input,Iter b,Iter e)
+template<stream T,bool sys>
+inline constexpr void fill_nc(text_view<T,sys>& view,std::size_t count,typename T::char_type const& ch)
 {
-	return input.mmreads(b,e);
-}
-
-template<character_output_stream T>
-constexpr inline void put(text_view<T>& output,typename text_view<T>::char_type ch)
-{
-	output.mmput(ch);
-}
-
-template<character_output_stream T,std::contiguous_iterator Iter>
-constexpr inline void writes(text_view<T>& output,Iter b,Iter e)
-{
-	output.mmwrites(b,e);
-}
-
-template<character_output_stream T>
-constexpr inline void flush(text_view<T>& output)
-{
-	flush(output.native_handle());
-}
-
-template<stream T>
-inline constexpr void fill_nc(text_view<T>& view,std::size_t count,typename T::char_type const& ch)
-{
-	if(ch=='\n')
+	if constexpr((!sys)||details::operating_system::win32==details::operating_system::native)
 	{
-		for(std::size_t i(0);i!=count;++i)
+		if(ch==0xA)
 		{
-			put(view.native_handle(),'\r');
-			put(view.native_handle(),'\n');
+			for(std::size_t i(0);i!=count;++i)
+			{
+				put(view.ib,0xD);
+				put(view.ib,0xA);
+			}
+			return;
 		}
-		return;
 	}
-	fill_nc(view.native_handle(),count,ch);
+	fill_nc(view.ib,count,ch);
+}
+
+template<buffer_output_stream T,bool sys>
+requires (sys&&details::operating_system::win32!=details::operating_system::native)
+inline constexpr void oreserve(text_view<T,sys>& view,std::size_t size)
+{
+	oreserve(view.ib,size);
+}
+
+template<buffer_output_stream T,bool sys>
+requires (sys&&details::operating_system::win32!=details::operating_system::native)
+inline constexpr void orelease(text_view<T,sys>& view,std::size_t size)
+{
+	orelease(view.ib,size);
 }
 
 

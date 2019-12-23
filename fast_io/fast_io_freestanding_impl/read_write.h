@@ -3,20 +3,6 @@
 namespace fast_io
 {
 
-template<character_input_stream input,Trivial_copyable T>
-inline constexpr void read(input& in,T& v)
-{
-	auto address(std::addressof(v));
-	if(reads(in,address,address+1)!=(address+1))
-		throw std::runtime_error("cannot read data from input_stream&");
-}
-
-template<output_stream output,Trivial_copyable T>
-inline constexpr void write_define(output& out,T const& v)
-{
-	auto address(std::addressof(v));
-	writes(out,address,address+1);
-}
 
 template<character_input_stream input>
 inline constexpr std::size_t read_size(input& in)
@@ -48,42 +34,51 @@ inline constexpr void write_size(output& out,std::size_t size)
 	put(out,static_cast<ch_type>(size));
 }
 
-template<character_input_stream input,Dynamic_size_container D>
-inline constexpr void read_define(input& in,D& v)
+namespace details
 {
-	v.resize(read_size(in));
-	for(auto & e : v)
-		read(in,e);
+template<typename T,std::size_t N>
+inline constexpr bool detect_std_array(std::array<T,N> const&) {return true;}
+
+template<typename T>
+inline constexpr bool detect_std_array(T const&) {return false;}
 }
 
-template<character_input_stream input,Contiguous_trivial_dynamic_size_container D>
-inline constexpr void read_define(input& in,D& v)
+template<output_stream output,typename T>
+requires (std::is_trivially_copyable_v<T>||std::ranges::sized_range<T>)
+inline constexpr void write_define(output& out,T const& v)
 {
-	v.resize(read_size(in));
-	if(reads(in,v.begin(),v.end())!=v.end())
-		throw std::runtime_error("read contiguous trivial containers error");
+	if constexpr(std::is_trivially_copyable_v<T>)
+	{
+		if constexpr(std::is_bounded_array_v<T>)
+			write_size(out,std::size(v));
+		auto address(std::addressof(v));
+		send(out,address,address+1);
+	}
+	else
+	{
+		if constexpr(!details::detect_std_array(v))
+			write_size(out,std::size(v));
+		for(auto const& e : v)
+			write(out,e);
+	}
+}
+template<input_stream input,typename T>
+requires (std::is_trivially_copyable_v<T>||std::ranges::sized_range<T>)
+inline constexpr void read_define(input& in,T& v)
+{
+	if constexpr(std::is_trivially_copyable_v<T>)
+	{
+		auto address(std::addressof(v));
+		receive(in,address,address+1);
+	}
+	else
+	{
+		if constexpr(!details::detect_std_array(v)&&!std::is_bounded_array_v<T>)
+			v.resize(read_size(in));
+		for(auto& e : v)
+			read(in,e);
+	}
 }
 
-template<character_output_stream output,Contiguous_trivial_dynamic_size_container D>
-inline constexpr void write_define(output& out,D const& v)
-{
-	write_size(out,v.size());
-	writes(out,v.begin(),v.end());
-}
-
-template<character_output_stream output,Dynamic_size_container D>
-inline constexpr void write_define(output& out,D const& v)
-{
-	write_size(out,v.size());
-	for(auto const& e : v)
-		write(out,e);
-}
-
-template<character_output_stream output,Contiguous_fixed_size_none_trivial_copyable_container D>
-inline constexpr void write_define(output& out,D const& v)
-{
-	for(auto const& e : v)
-		write(out,e);
-}
 
 }

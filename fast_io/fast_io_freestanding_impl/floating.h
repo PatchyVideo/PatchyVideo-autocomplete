@@ -68,7 +68,7 @@ inline void output_fixed_floats(output& out,T e,std::size_t precision)
 		for(std::size_t i(bas.size());i--;put(out,bas[i]));
 		if(!precision)
 			return;
-		put(out,'.');
+		put(out,0x2E);
 		bas.clear();
 		do
 		{
@@ -121,16 +121,16 @@ inline void output_fixed_floats(output& out,T e,std::size_t precision)
 		}
 		while((u=temp));
 		if(bas2.empty())
-			put(out,'0');
+			put(out,0x30);
 		else
 			for(std::size_t i(bas2.size());i--;put(out,bas2[i]));
 		if(!precision)
 			return;
-		put(out,'.');
+		put(out,0x2E);
 		if(!hasone)
 			bas.clear();
 		for(std::size_t i(bas.size());i<precision;++i)
-			put(out,'0');
+			put(out,0x30);
 		for(std::size_t i(bas.size());i--;put(out,bas[i]));
 	}
 }
@@ -143,12 +143,12 @@ inline void print_define(output& out,manip::scientific<precision,T const> a)
 	auto e(a.reference);
 	if(e==0)	//if e==0 then log10 is UNDEFINED
 	{
-		put(out,'0');
+		put(out,0x30);
 		if(a.precision)
 		{
-			put(out,'.');
+			put(out,0x2E);
 			for(std::size_t i(0);i!=precision;++i)
-				put(out,'0');
+				put(out,0x30);
 		}
 		print(out,"e0");
 		return;
@@ -156,16 +156,16 @@ inline void print_define(output& out,manip::scientific<precision,T const> a)
 	if(e<0)
 	{
 		e=-e;
-		put(out,'-');
+		put(out,0x2d);
 	}
 	if(details::output_inf(out,e))
 		return;
 	auto x(std::floor(std::log10(e)));
 	details::output_fixed_floats(out,e*std::pow(10,-x),precision);
-	put(out,'e');
+	put(out,0x65);
 	if(x<0)
 	{
-		put(out,'-');
+		put(out,0x2d);
 		x=-x;
 	}
 	print(out,static_cast<std::uint64_t>(x));
@@ -177,13 +177,13 @@ inline void print_define(output& out,manip::shortest<std::size_t,T const> a)
 	auto e(a.reference);
 	if(e==0)	//if e==0 then log10 is UNDEFINED
 	{
-		put(out,'0');
+		put(out,0x30);
 		return;
 	}
 	if(e<0)
 	{
 		e=-e;
-		put(out,'-');
+		put(out,0x2d);
 	}
 	if(details::output_inf(out,e))
 		return;
@@ -196,10 +196,10 @@ inline void print_define(output& out,manip::shortest<std::size_t,T const> a)
 	else
 		details::output_fixed_floats(bas,e*std::pow(10,-x),precision);
 	auto& str(bas.str());
-	if(str.find('.')!=std::string::npos)
+	if(str.find(0x2E)!=std::string::npos)
 	{
-		for(;!str.empty()&&str.back()=='0';str.pop_back());
-		if(!str.empty()&&str.back()=='.')
+		for(;!str.empty()&&str.back()==0x30;str.pop_back());
+		if(!str.empty()&&str.back()==0x2E)
 			str.pop_back();
 		print(out,str);
 	}		
@@ -208,10 +208,10 @@ inline void print_define(output& out,manip::shortest<std::size_t,T const> a)
 	}
 	if(x==0)
 		return;
-	put(out,'e');
+	put(out,0x65);
 	if(x<0)
 	{
-		put(out,'-');
+		put(out,0x2d);
 		x=-x;
 	}
 	print(out,static_cast<std::uint64_t>(x));
@@ -252,12 +252,12 @@ inline void print_define(output& out,manip::fixed<precision,T const> a)
 	if constexpr (precision<325)
 	{
 		std::array<typename output::char_type,reserved_size> array;
-		writes(out,array.data(),details::ryu::output_fixed<precision>(array.data(),static_cast<double>(a.reference)));
+		send(out,array.data(),details::ryu::output_fixed<precision>(array.data(),static_cast<double>(a.reference)));
 	}
 	else
 	{
 		std::basic_string<typename output::char_type> str(reserved_size);
-		writes(out,str.data(),details::ryu::output_fixed<precision>(str.data(),static_cast<double>(a.reference)));
+		send(out,str.data(),details::ryu::output_fixed<precision>(str.data(),static_cast<double>(a.reference)));
 	}
 }
 
@@ -289,12 +289,12 @@ inline void print_define(output& out,manip::scientific<precision,uppercase_e,T c
 	if constexpr (precision<325)
 	{
 		std::array<typename output::char_type,reserved_size> array;
-		writes(out,array.data(),details::ryu::output_fixed<precision,true,uppercase_e>(array.data(),static_cast<double>(a.reference)));
+		send(out,array.data(),details::ryu::output_fixed<precision,true,uppercase_e>(array.data(),static_cast<double>(a.reference)));
 	}
 	else
 	{
 		std::basic_string<typename output::char_type> str(reserved_size);
-		writes(out,str.data(),details::ryu::output_fixed<precision,true,uppercase_e>(str.data(),static_cast<double>(a.reference)));
+		send(out,str.data(),details::ryu::output_fixed<precision,true,uppercase_e>(str.data(),static_cast<double>(a.reference)));
 	}
 }
 
@@ -324,7 +324,7 @@ inline void print_define(output& out,manip::fixed_shortest<T const> a)
 		}
 	}
 	std::array<typename output::char_type,reserved_size> array;
-	writes(out,array.data(),details::ryu::output_shortest<false,1>(array.data(),static_cast<double>(a.reference)));
+	send(out,array.data(),details::ryu::output_shortest<false,1>(array.data(),static_cast<double>(a.reference)));
 }
 
 template<output_stream output,bool uppercase_e,std::floating_point T>
@@ -353,7 +353,7 @@ inline void print_define(output& out,manip::scientific_shortest<uppercase_e,T co
 		}
 	}
 	std::array<typename output::char_type,reserved_size> array;
-	writes(out,array.data(),details::ryu::output_shortest<uppercase_e,2>(array.data(),static_cast<double>(a.reference)));
+	send(out,array.data(),details::ryu::output_shortest<uppercase_e,2>(array.data(),static_cast<double>(a.reference)));
 }
 
 template<output_stream output,bool uppercase_e,std::floating_point T>
@@ -382,7 +382,7 @@ inline void print_define(output& out,manip::shortest_shortest<uppercase_e,T cons
 		}
 	}
 	std::array<typename output::char_type,reserved_size> array;
-	writes(out,array.data(),details::ryu::output_shortest<uppercase_e>(array.data(),static_cast<double>(a.reference)));
+	send(out,array.data(),details::ryu::output_shortest<uppercase_e>(array.data(),static_cast<double>(a.reference)));
 }
 
 template<output_stream output,std::floating_point T>
@@ -410,99 +410,13 @@ inline void print_define(output& out,T a)
 		}
 	}
 	std::array<typename output::char_type,reserved_size> array;
-	writes(out,array.data(),details::ryu::output_shortest<false>(array.data(),static_cast<double>(a)));
+	send(out,array.data(),details::ryu::output_shortest<false>(array.data(),static_cast<double>(a)));
 }
 
 template<character_input_stream input,std::floating_point T>
-inline constexpr void scan(input& in,T &t)
+inline constexpr void scan_define(input& in,T &t)
 {
-	decltype(get(in)) ch;
-	bool negative(false);
-	bool phase2(false);
-	for(;;)
-	{
-		ch=get(in);
-		if(48<=ch&&ch<=57)
-		{
-			t=ch-48;
-			break;
-		}
-		else
-		{
-			if(ch=='-')
-			{
-				ch=get(in);
-				if(48<=ch&&ch<=57)
-				{
-					negative=true;
-					t=ch-48;
-					break;
-				}
-				else if(ch=='.')
-				{
-					negative=true;
-					phase2=true;
-					t=0;
-					break;
-				}
-			}
-			else if(ch=='.')
-			{
-				ch=get(in);
-				if(48<=ch&&ch<=57)
-				{
-					phase2=true;
-					t=0;
-					break;
-				}
-			}
-		}
-	}
-	if(!phase2)
-	{
-		while(true)
-		{
-			auto try_ch(try_get(in));
-			if(48<=try_ch.first&&try_ch.first<=57)
-				t=t*10+try_ch.first-48;
-			else if(try_ch.first=='.')
-			{
-				phase2 = true;
-				break;
-			}
-			else if(try_ch.first=='e'||try_ch.first=='E')
-				break;
-			else
-			{
-				if(negative)
-					t=-t;
-				return;
-			}
-		}
-	}
-	if(phase2)
-	{
-		T current(10);
-		for(;;current*=10)
-		{
-			auto try_ch(try_get(in));
-			if(48<=try_ch.first&&try_ch.first<=57)
-				t+=(try_ch.first-48)/current;
-			else if(try_ch.first=='e'||try_ch.first=='E')
-				break;
-			else
-			{
-				if(negative)
-					t=-t;
-				return;
-			}
-		}
-	}
-	std::ptrdiff_t p=0;
-	scan(in,p);
-	t*=std::pow(10,p);
-	if(negative)
-		t=-t;
+	t=static_cast<std::remove_cvref_t<T>>(details::ryu::input_floating<double>(in));
 }
 
 }

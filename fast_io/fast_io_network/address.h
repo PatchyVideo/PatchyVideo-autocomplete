@@ -27,21 +27,10 @@ inline constexpr auto family(ipv4 const&)
 	return sock::family::ipv4;
 }
 
-namespace details
-{
 
-template<std::unsigned_integral U>
-inline constexpr U big_endian(U const& u)
+struct socket_address_storage
 {
-//assume it is little endian before most compiler supports big endian detect
-	auto pun(bit_cast<std::array<std::byte,sizeof(U)>>(u));
-	std::reverse(pun.begin(),pun.end());
-	return bit_cast<U>(pun);
-}
-}
-
-struct socket_address_storage:sockaddr
-{
+	sockaddr sock;
 	std::array<std::byte,sizeof(sockaddr_storage)<sizeof(sockaddr)?0x0:sizeof(sockaddr_storage)-sizeof(sockaddr)> storage;
 };
 
@@ -63,11 +52,11 @@ template<character_output_stream output>
 inline constexpr void print_define(output& os, ipv4 const &v)
 {
 	print(os, v.storage.front());
-	put(os, '.');
+	put(os, 0x2E);
 	print(os, v.storage[1]);
-	put(os, '.');
+	put(os, 0x2E);
 	print(os, v.storage[2]);
-	put(os, '.');
+	put(os, 0x2E);
 	print(os, v.storage.back());
 }
 
@@ -96,15 +85,15 @@ inline constexpr void scan_define(input& in,ipv6& v6)
 	else if(39<str.size())
 		throw std::runtime_error("ipv6 address too long");
 	std::size_t colons(0),position(npos);
-	if(str.front()!=':')
+	if(str.front()!=0x3a)
 		++colons;
-	if(str.back()!=':')
+	if(str.back()!=0x3a)
 		++colons;
 	for(std::size_t i(0);i!=str.size();++i)
-		if(str[i]==':')
+		if(str[i]==0x3a)
 		{
 			++colons;
-			if(i+1!=str.size()&&str[i+1]==':')
+			if(i+1!=str.size()&&str[i+1]==0x3a)
 			{
 				position=i;
 				++i;
@@ -114,7 +103,7 @@ inline constexpr void scan_define(input& in,ipv6& v6)
 		throw std::runtime_error("too many : for ipv6 address");
 	if(position!=npos)
 	{
-		std::string tempstr(1,' ');
+		std::string tempstr(1,0x20);
 		for(std::size_t i(9-colons);i--;)
 			tempstr.append("0 ",2);
 		str.insert(position,tempstr);
@@ -180,20 +169,20 @@ inline constexpr void print_define(output& os,manip::base_t<base,uppercase,T> e)
 		if(maximum_zero_start)
 			print(os,fast_io::base<base,uppercase>(storage.front()));
 		for(std::size_t i(1);i<maximum_zero_start;++i)
-			print(os,fast_io::char_view(':'),fast_io::base<base,uppercase>(storage[i]));
+			print(os,fast_io::char_view(0x3a),fast_io::base<base,uppercase>(storage[i]));
 		print(os,"::");
 		std::size_t const maximum_zero_end(maximum_zero_start+maximum_zero_size);
 		if(maximum_zero_end==storage.size())
 			return;
 		print(os,fast_io::base<base,uppercase>(storage[maximum_zero_end]));
 		for(std::size_t i(maximum_zero_end+1);i<storage.size();++i)
-			print(os,fast_io::char_view(':'),fast_io::base<base,uppercase>(storage[i]));
+			print(os,fast_io::char_view(0x3a),fast_io::base<base,uppercase>(storage[i]));
 	}
 	else
 	{
 		print(os, fast_io::hex(storage.front()));
 		for (auto i(storage.cbegin() + 1); i != storage.cend(); ++i)
-			print(os,fast_io::char_view(':'),fast_io::base<base,uppercase>(*i));
+			print(os,fast_io::char_view(0x3a),fast_io::base<base,uppercase>(*i));
 	}
 }
 

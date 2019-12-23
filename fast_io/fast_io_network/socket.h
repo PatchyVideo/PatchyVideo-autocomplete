@@ -46,14 +46,13 @@ public:
 	}
 };
 
-
 template<std::contiguous_iterator Iter>
-inline Iter reads(socket& soc,Iter begin,Iter end)
+inline Iter receive(socket& soc,Iter begin,Iter end)
 {
 	return begin+((sock::details::recv(soc.native_handle(),std::to_address(begin),static_cast<int>((end-begin)*sizeof(*begin)),0))/sizeof(*begin));
 }
 template<std::contiguous_iterator Iter>
-inline Iter writes(socket& soc,Iter begin,Iter end)
+inline Iter send(socket& soc,Iter begin,Iter end)
 {
 	return begin+(sock::details::send(soc.native_handle(),std::to_address(begin),static_cast<int>((end-begin)*sizeof(*begin)),0)/sizeof(*begin));
 }
@@ -111,11 +110,58 @@ public:
 	server(U u,Args&& ...args):server(ipv4{},u,std::forward<Args>(args)...)
 	{
 	}
-	constexpr auto& handle()
+	constexpr auto& native_handle()
 	{
 		return soc;
 	}
 };
+
+#if defined(__WINNT__) || defined(_MSC_VER)
+#else
+inline void unblock(socket& sv)
+{
+	if(::fcntl(sv.native_handle(), F_SETFL, O_NONBLOCK)==-1)
+		throw std::system_error(errno,std::generic_category());
+}
+
+inline void unblock(server& sv)
+{
+	unblock(sv.native_handle());
+}
+#endif
+
+class async_server
+{
+	socket soc;
+public:
+	template<typename addrType,std::integral U,typename ...Args>
+	requires (!std::integral<addrType>)
+	async_server(addrType const& add,U u,Args&& ...args):soc(family(add),std::forward<Args>(args)...)
+	{
+		auto stg(to_socket_address_storage(add,u));
+#if defined(__WINNT__) || defined(_MSC_VER)
+#else
+		unblock(soc);
+#endif
+		sock::details::bind(soc.native_handle(),stg,native_socket_address_size(add));
+		sock::details::listen(soc.native_handle(),10);
+	}
+	template<std::integral U,typename ...Args>
+	async_server(U u,Args&& ...args):async_server(ipv4{},u,std::forward<Args>(args)...)
+	{
+	}
+	constexpr auto& native_handle()
+	{
+		return soc;
+	}
+};
+
+struct non_block_t
+{
+explicit constexpr non_block_t()=default;
+};
+
+inline constexpr non_block_t non_block{};
 
 class acceptor:public socket
 {
@@ -125,7 +171,16 @@ public:
 	using char_type = char;
 	acceptor(server& listener_socket)
 	{
-		protected_native_handle()=sock::details::accept(listener_socket.handle().native_handle(),cinfo.storage,cinfo.storage_size);
+		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+	}
+	acceptor(async_server& listener_socket)
+	{
+#if defined(__WINNT__) || defined(_MSC_VER)
+		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+#else
+		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+		unblock(*this);
+#endif
 	}
 	constexpr auto& get()
 	{

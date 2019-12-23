@@ -42,7 +42,7 @@ inline constexpr void orelease(basic_ostring<T>& ob,std::size_t size)
 }
 
 template<typename T,std::contiguous_iterator Iter>
-inline constexpr void writes(basic_ostring<T>& ostr,Iter cbegin,Iter cend)
+inline constexpr void send(basic_ostring<T>& ostr,Iter cbegin,Iter cend)
 {
 	using char_type = typename T::value_type;
 	ostr.str().append(static_cast<char_type const*>(static_cast<void const*>(std::to_address(cbegin))),static_cast<char_type const*>(static_cast<void const*>(std::to_address(cend))));

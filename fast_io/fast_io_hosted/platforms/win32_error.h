@@ -1,40 +1,39 @@
 #pragma once
-#undef min
-#undef max
-#include<ws2tcpip.h>
 
-#undef interface			//what a joke. Who did this?
-#undef min			//what a joke. Who did this?
-#undef max			//what a joke. Who did this?
+#include"win32apis.h"
 
 namespace fast_io
 {
 
 //void * __stdcall LoadLibraryW(wchar_t const*);
 
+
 class win32_error : public std::runtime_error
 {
-	static std::string format_get_last_error(DWORD error)
+	inline static std::string format_get_last_error(std::uint32_t error)
 	{
 		if (error)
 		{
-			char *lpMsgBuf;
-			auto bufLen(FormatMessage(
-			0x00000100 | 0x00000200 | 0x00001000,
+			std::array<wchar_t,32768> buffer;
+			auto const buffer_length(win32::FormatMessageW(
+			0x00000200 | 0x00001000,
 			nullptr,
 			error,
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-			(LPTSTR) &lpMsgBuf,
-			0, nullptr));
-			if (bufLen)
-			{
-				std::unique_ptr<char,decltype(LocalFree)*> up(lpMsgBuf,LocalFree);
-				return std::string(up.get(), up.get()+bufLen);
-			}
+			(1 << 10),
+			buffer.data(),
+			buffer.size(),
+			nullptr));
+			if (buffer_length)
+				return ucs_to_utf8(std::wstring_view(buffer.data(),buffer_length));
 		}
-		return std::string();
+		return {};
 	}
+	std::uint32_t ec;
 public:
-	explicit win32_error(DWORD const& error = GetLastError()):std::runtime_error(format_get_last_error(error)){}
+	explicit win32_error(std::uint32_t error = win32::GetLastError()):std::runtime_error(format_get_last_error(error)),ec(error){}
+	auto get() const noexcept
+	{
+		return ec;
+	}
 };
 }

@@ -44,15 +44,15 @@ template<stream srm>
 io_ref(srm&) -> io_ref<srm>;
 
 template<input_stream input,std::contiguous_iterator Iter>
-inline constexpr Iter reads(io_ref<input>& in,Iter begin,Iter end)
+inline constexpr Iter receive(io_ref<input>& in,Iter begin,Iter end)
 {
-	return reads(*in,begin,end);
+	return receive(*in,begin,end);
 }
 
 template<output_stream output,std::contiguous_iterator Iter>
-inline constexpr auto writes(io_ref<output>& out,Iter begin,Iter end)
+inline constexpr auto send(io_ref<output>& out,Iter begin,Iter end)
 {
-	return writes(*out,begin,end);
+	return send(*out,begin,end);
 }
 
 template<output_stream output>
@@ -67,16 +67,10 @@ inline constexpr decltype(auto) mutex(io_ref<T>& t)
 	return mutex(*t);
 }
 
-template<character_input_stream input>
+template<bool err=false,character_input_stream input>
 inline constexpr auto get(io_ref<input>& in)
 {
-	return get(*in);
-}
-
-template<character_input_stream input>
-inline constexpr auto try_get(io_ref<input>& in)
-{
-	return try_get(*in);
+	return get<err>(*in);
 }
 
 template<character_output_stream output>

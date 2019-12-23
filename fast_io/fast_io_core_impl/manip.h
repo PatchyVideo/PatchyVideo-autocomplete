@@ -178,7 +178,7 @@ inline void print_define(output& out,manip::char_view<T> a)
 	put(out,static_cast<typename output::char_type>(a.reference));
 }
 
-template<std::size_t indent_w,bool left=false,char fill_ch=' ',typename T>
+template<std::size_t indent_w,bool left=false,char fill_ch=0x20,typename T>
 inline constexpr manip::width<indent_w,left,fill_ch,T const> width(T const& t)
 {
 	return {t};

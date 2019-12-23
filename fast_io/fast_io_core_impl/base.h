@@ -38,7 +38,7 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 			if constexpr(point)
 			{
 				*--iter=tm[1];
-				*--iter='.';
+				*--iter=0x2E;
 				*--iter=tm.front();
 			}
 			else
@@ -49,11 +49,11 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 		else
 		{
 			if constexpr(point)
-				*--iter='.';
+				*--iter=0x2E;
 			if constexpr(10 < base)
 			{
 				if(a<10)
-					*--iter = a+'0';
+					*--iter = a+0x30;
 				else
 				{
 					if constexpr (uppercase)
@@ -63,7 +63,7 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 				}
 			}
 			else
-				*--iter=a+'0';
+				*--iter=a+0x30;
 		}
 	}
 	else
@@ -72,12 +72,12 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 		{
 			auto const& tm(table[a]);
 			auto i(tm.data());
-			for(;*i=='0';++i);
+			for(;*i==0x30;++i);
 			auto const ed(tm.data()+chars);
 			if constexpr(point)
 			{
 				std::copy(i+1,ed,iter-=ed-(i+1));
-				*--iter='.';
+				*--iter=0x2E;
 				*--iter=*i;
 			}
 			else
@@ -86,11 +86,11 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 		else
 		{
 			if constexpr(point)
-				*--iter='.';
+				*--iter=0x2E;
 			if constexpr(10 < base)
 			{
 				if(a<10)
-					*--iter = a+'0';
+					*--iter = a+0x30;
 				else
 				{
 					if constexpr (uppercase)
@@ -100,7 +100,7 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 				}
 			}
 			else
-				*--iter=a+'0';
+				*--iter=a+0x30;
 		}
 	}
 	return iter;
@@ -187,63 +187,135 @@ inline constexpr std::size_t chars_len(U value) noexcept
 	}
 }
 
-template<std::uint8_t base,bool uppercase,output_stream output,std::unsigned_integral U>
+
+template<std::uint8_t base,bool uppercase,bool ln=false,output_stream output,std::unsigned_integral U>
 inline constexpr void output_base_number(output& out,U a)
 {
 	if constexpr(buffer_output_stream<output>)
 	{
-		auto reserved(oreserve(out,chars_len<base>(a)));
-		if constexpr(std::is_pointer_v<decltype(reserved)>)
+		if constexpr(ln)
 		{
-			if(reserved)
+			auto reserved(oreserve(out,chars_len<base,false>(a)+1));
+			if constexpr(std::is_pointer_v<decltype(reserved)>)
 			{
+				if(reserved)
+				{
+					*--reserved=0xA;
+					output_base_number_impl<base,uppercase>(reserved,a);
+					return;
+				}
+			}
+			else
+			{
+				*--reserved=0xA;
 				output_base_number_impl<base,uppercase>(reserved,a);
 				return;
 			}
 		}
 		else
 		{
-			output_base_number_impl<base,uppercase>(reserved,a);
-			return;
+			auto reserved(oreserve(out,chars_len<base,false>(a)));
+			if constexpr(std::is_pointer_v<decltype(reserved)>)
+			{
+				if(reserved)
+				{
+					output_base_number_impl<base,uppercase>(reserved,a);
+					return;
+				}
+			}
+			else
+			{
+				output_base_number_impl<base,uppercase>(reserved,a);
+				return;
+			}
 		}
 	}
-	std::array<typename output::char_type,sizeof(a)*8> v;
-	auto const e(v.data()+v.size());
-	writes(out,output_base_number_impl<base,uppercase>(e,a),e);
+	if constexpr(ln)
+	{
+		std::array<typename output::char_type,sizeof(a)*8+1> v;
+		v.back()=0xA;
+		auto const e(v.data()+v.size());
+		send(out,output_base_number_impl<base,uppercase>(e-1,a),e);
+	}
+	else
+	{
+		std::array<typename output::char_type,sizeof(a)*8> v;
+		auto const e(v.data()+v.size());
+		send(out,output_base_number_impl<base,uppercase>(e,a),e);
+	}
 }
 
-template<std::uint8_t base,bool uppercase,output_stream output,std::signed_integral T>
+template<std::uint8_t base,bool uppercase,bool ln=false,output_stream output,std::signed_integral T>
 inline constexpr void output_base_number(output& out,T b)
 {
 	bool const minus(b<0);
 	auto const a(static_cast<std::make_unsigned_t<T>>(minus?-b:b));
 	if constexpr(buffer_output_stream<output>)
 	{
-		auto reserved(oreserve(out,chars_len<base>(a)+minus));
-		if constexpr(std::is_pointer_v<decltype(reserved)>)
+		if constexpr(ln)
 		{
-			if(reserved)
+			auto reserved(oreserve(out,chars_len<base>(a)+1+minus));
+			if constexpr(std::is_pointer_v<decltype(reserved)>)
 			{
+				if(reserved)
+				{
+					*--reserved=0xA;
+					auto p(output_base_number_impl<base,uppercase>(reserved,a));
+					if(minus)
+						*--p=0x2d;
+					return;
+				}
+			}
+			else
+			{
+				*--reserved=0xA;
 				auto p(output_base_number_impl<base,uppercase>(reserved,a));
 				if(minus)
-					*--p='-';
+					*--p=0x2d;
 				return;
 			}
 		}
 		else
 		{
-			auto p(output_base_number_impl<base,uppercase>(reserved,a));
-			if(minus)
-				*--p='-';
-			return;
+			auto reserved(oreserve(out,chars_len<base>(a)+minus));
+			if constexpr(std::is_pointer_v<decltype(reserved)>)
+			{
+				if(reserved)
+				{
+					auto p(output_base_number_impl<base,uppercase>(reserved,a));
+					if(minus)
+						*--p=0x2d;
+					return;
+				}
+			}
+			else
+			{
+				auto p(output_base_number_impl<base,uppercase>(reserved,a));
+				if(minus)
+					*--p=0x2d;
+				return;
+			}
 		}
 	}
-	std::array<typename output::char_type,sizeof(a)*8+1> v;
-	auto const e(v.data()+v.size());
-	auto iter(output_base_number_impl<base,uppercase>(e,a));
-	if(minus)
-		*--iter='-';
-	writes(out,iter,e);
+	if constexpr(ln)
+	{
+		std::array<typename output::char_type,sizeof(a)*8+2> v;
+		v.back()=0xA;
+		auto const e(v.data()+v.size());
+		auto iter(output_base_number_impl<base,uppercase>(e-1,a));
+		if(minus)
+			*--iter=0x2d;
+		send(out,iter,e);		
+	}
+	else
+	{
+		std::array<typename output::char_type,sizeof(a)*8+1> v;
+		auto const e(v.data()+v.size());
+		auto iter(output_base_number_impl<base,uppercase>(e,a));
+		if(minus)
+			*--iter=0x2d;
+		send(out,iter,e);
+	}
 }
 
 template<std::uint8_t base,character_input_stream input,std::integral U>
@@ -253,7 +325,7 @@ inline constexpr void input_base_number_phase2(input& in,U& a)
 	unsigned_char_type constexpr baseed(std::min(static_cast<unsigned_char_type>(base),static_cast<unsigned_char_type>(10)));
 	while(true)
 	{
-		unsigned_char_type ch(try_get(in).first);
+		unsigned_char_type ch(get<true>(in).first);
 		if((ch-=48)<baseed)
 			a=a*base+ch;
 		else if constexpr (10 < base)
@@ -398,6 +470,12 @@ inline constexpr void print_define(output& out,manip::base_t<base,uppercase,T> v
 	details::output_base_number<base,uppercase>(out,v.reference);
 }
 
+template<std::size_t base,bool uppercase,character_output_stream output,std::integral T>
+inline constexpr void println_define(output& out,manip::base_t<base,uppercase,T> v)
+{
+	details::output_base_number<base,uppercase,true>(out,v.reference);
+}
+
 template<std::size_t base,bool uppercase,character_input_stream input,std::integral T>
 inline constexpr void scan_define(input& in,manip::base_t<base,uppercase,T> v)
 {
@@ -411,13 +489,19 @@ inline constexpr void scan_define(input& in,T& a)
 	details::input_base_number<10>(in,a);
 }
 
-template<character_output_stream output,std::integral T>
+template<output_stream output,std::integral T>
 inline constexpr void print_define(output& out,T const& a)
 {
 	details::output_base_number<10,false>(out,a);
 }
 
-template<std::size_t base,bool uppercase,character_output_stream output,typename T>
+template<output_stream output,std::integral T>
+inline constexpr void println_define(output& out,T const& a)
+{
+	details::output_base_number<10,false,true>(out,a);
+}
+
+template<std::size_t base,bool uppercase,output_stream output,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void print_define(output& out,manip::base_t<base,uppercase,T> v)
 {
@@ -443,11 +527,18 @@ inline constexpr void scan_define(input& in,T& a)
 	a=static_cast<std::byte>(u);
 }
 
-template<character_output_stream output,typename T>
+template<output_stream output,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void print_define(output& out,T& a)
 {
 	details::output_base_number<10,false>(out,std::to_integer<char unsigned>(a));
+}
+
+template<output_stream output,typename T>
+requires std::same_as<std::byte,std::remove_cvref_t<T>>
+inline constexpr void println_define(output& out,T& a)
+{
+	details::output_base_number<10,false,true>(out,std::to_integer<char unsigned>(a));
 }
 
 

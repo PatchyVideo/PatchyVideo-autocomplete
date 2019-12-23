@@ -28,8 +28,9 @@ inline static mode constexpr direct{1<<3};
 inline static mode constexpr excl{1<<4};//C++ iostream currently still does not support "x"
 inline static mode constexpr in{1<<5};
 inline static mode constexpr out{1<<6};
-inline static mode constexpr sync{1<<7};
-inline static mode constexpr trunc{1<<8};
+inline static mode constexpr overlapped{1<<7};
+inline static mode constexpr sync{1<<8};
+inline static mode constexpr trunc{1<<9};
 
 inline constexpr mode operator|(mode const& a,mode const& b)
 {
@@ -42,6 +43,11 @@ inline constexpr mode remove_ate(mode const& m)
 {
 	return {m.value&~ate.value};
 }
+inline constexpr mode remove_ate_overlapped(mode const& m)
+{
+	return {m.value&~ate.value&~overlapped.value};
+}
+
 inline constexpr mode remove_binary(mode const& m)
 {
 	return {m.value&~binary.value};
@@ -180,33 +186,33 @@ inline auto constexpr c_style(std::string_view csm)
 	mode v{};
 	bool extended(false);
 	for(auto const& e : csm)
-		if(e=='+')
+		if(e==0x2b)
 			extended=true;
 	for(auto const& e : csm)
 		switch(e)
 		{
-			case 'a':
+			case u8'a':
 				v|=app;
 				if(extended)
 					v|=in|out;
 			break;
-			case 'b':
+			case u8'b':
 				v|=binary;
 			break;
-			case 'r':
+			case 0x72:
 				v|=in;
 				if(extended)
 					v|=out;
 			break;
-			case 'w':
+			case 0x77:
 				v|=out;
 				if(extended)
 					v|=in|trunc;
 			break;
-			case 'x':
+			case 0x78:
 				v|=excl;
 			break;
-			case '+':
+			case 0x2b:
 			break;
 			default:
 				static_assert(true,"unknown C-style open mode");

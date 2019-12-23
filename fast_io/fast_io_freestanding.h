@@ -6,7 +6,7 @@
 #include<stdexcept>
 #include<string>
 #include<bitset>
-#include<cmath>
+//#include<cmath>
 
 #include"fast_io_freestanding_impl/concat.h"
 #include"fast_io_freestanding_impl/manip.h"

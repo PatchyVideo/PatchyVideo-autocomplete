@@ -10,7 +10,7 @@ template<character_input_stream input>
 inline void get_http_header_split(input& in,std::basic_string<typename input::char_type> &str)
 {
 	str.clear();
-	for(decltype(try_get(in)) ch;!(ch=try_get(in)).second&&!details::isspace(ch.first)&ch.first!='\r'&ch.first!=':';str.push_back(ch.first));
+	for(decltype(get<true>(in)) ch;!(ch=get<true>(in)).second&&!details::isspace(ch.first)&ch.first!=0xD&ch.first!=0x3a;str.push_back(ch.first));
 }
 
 template<fast_io::character_input_stream input>
@@ -24,7 +24,7 @@ inline constexpr auto scan_http_header(input& in)
 			return results;
 		fast_io::istring_view isv(str);
 		get_http_header_split(isv,a);
-		if(a.back()==':')
+		if(a.back()==0x3a)
 			a.pop_back();
 		getcarriage(isv,b);
 		results.emplace(std::move(a),std::move(b));

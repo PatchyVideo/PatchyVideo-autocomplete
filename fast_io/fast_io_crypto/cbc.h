@@ -48,7 +48,7 @@ private:
 
 		for (; pi != pe;)
 		{
-			cipher_buf_pos = reads(ib,cipher_buf_pos, cipher_buf.end());
+			cipher_buf_pos = receive(ib,cipher_buf_pos, cipher_buf.end());
 			if (cipher_buf_pos != cipher_buf.end())
 				return pi;
 
@@ -84,11 +84,12 @@ public:
 	{
 	}
 	template<std::contiguous_iterator Iter>
-	inline constexpr Iter mmreads(Iter begin, Iter end)
+	inline constexpr Iter mmreceive(Iter begin, Iter end)
 	{
 		auto bgchadd(static_cast<unsigned_char_type *>(static_cast<void *>(std::to_address(begin))));
 		return begin + (mread(bgchadd, static_cast<unsigned_char_type *>(static_cast<void *>(std::to_address(end)))) - bgchadd) / sizeof(*begin);
 	}
+	template<bool err=false>
 	inline constexpr char_type mmget()
 	{
 		if (plaintext_buf_pos == plaintext_buf.end())
@@ -99,28 +100,21 @@ public:
 			if (ret != next_ch)
 			{
 				plaintext_buf_pos = plaintext_buf.begin();
-				throw eof();
+				if constexpr(err)
+					return {0, true};
+				else
+					throw eof();
 			}
-			return static_cast<char_type>(*tmp.begin());
+			if constexpr(err)
+				return std::pair<char_type, bool>{static_cast<char_type>(*tmp.begin()), false};
+			else
+				return static_cast<char_type>(*tmp.begin());
 		}
-		return static_cast<char_type>(*plaintext_buf_pos++);
-	}
-
-	inline constexpr std::pair<char_type, bool> mmtry_get()
-	{
-		if (plaintext_buf_pos == plaintext_buf.end())
-		{
-			block_type tmp;
-			auto next_ch(tmp.begin() + 1);
-			auto ret(mread(tmp.data(), std::to_address(next_ch)));
-			if (ret != next_ch)
-			{
-				plaintext_buf_pos = plaintext_buf.begin(); // TODO: begin or end
-				return {0, true};
-			}
-			return {static_cast<char_type>(*tmp.begin()), false};
-		}
-		return {static_cast<char_type>(*plaintext_buf_pos++), false};
+		if constexpr(err)
+			return std::pair<char_type, bool>{static_cast<char_type>(*plaintext_buf_pos++), false};
+		else
+			return static_cast<char_type>(*plaintext_buf_pos++);
+			
 	}
 };
 
@@ -158,7 +152,7 @@ private:
 				xored_text[i] ^= plaintext_buf[i];
 			
 			auto cipher(enc(xored_text.data()));
-			writes(ob,cipher.cbegin(), cipher.cend());
+			send(ob,cipher.cbegin(), cipher.cend());
 			iv = cipher;
 			plaintext_buf_pos = plaintext_buf.begin();
 		}
@@ -178,7 +172,7 @@ public:
 	}
 
 	template<std::contiguous_iterator Iter>
-	inline constexpr void mmwrites(Iter b, Iter e)
+	inline constexpr void mmsend(Iter b, Iter e)
 	{
 		auto pb(static_cast<unsigned_char_type const *>(static_cast<void const *>(std::addressof(*b))));
 		auto pi(pb), pe(pb + (e - b) * sizeof(*b) / sizeof(unsigned_char_type));
@@ -200,7 +194,7 @@ public:
 				xored_text[i] ^= plaintext_buf[i];
 			
 			auto cipher(enc(xored_text.data()));
-			writes(ob,cipher.cbegin(), cipher.cend());
+			send(ob,cipher.cbegin(), cipher.cend());
 			iv = cipher;
 
 			plaintext_buf_pos = plaintext_buf.begin();
@@ -212,7 +206,7 @@ public:
 			for (std::size_t i(0); i != iv.size(); ++i)
 				xored_text[i] ^= pi[i];
 			auto cipher(enc(xored_text.data()));
-			writes(ob,cipher.cbegin(), cipher.cend());
+			send(ob,cipher.cbegin(), cipher.cend());
 			iv = cipher;
 		}
 		plaintext_buf_pos = std::uninitialized_copy(pi, pe, plaintext_buf.begin());
@@ -226,7 +220,7 @@ public:
 				xored_text[i] ^= plaintext_buf[i];
 			
 			auto cipher(enc(xored_text.data()));
-			writes(ob,cipher.cbegin(), cipher.cend());
+			send(ob,cipher.cbegin(), cipher.cend());
 			iv = cipher;
 			plaintext_buf_pos = plaintext_buf.begin();
 		}
@@ -264,12 +258,14 @@ public:
 		}
 	}
 	~basic_ocbc()
-	try
 	{
-		write_remain();
-	}
-	catch (...)
-	{
+		try
+		{
+			write_remain();
+		}
+		catch (...)
+		{
+		}
 	}
 	void swap(basic_ocbc &other) noexcept
 	{
@@ -290,28 +286,24 @@ inline void swap(basic_ocbc<T,Enc>& a,basic_ocbc<T,Enc>& b) noexcept
 }
 
 template <input_stream T, typename Enc,std::contiguous_iterator Iter>
-inline constexpr auto reads(basic_icbc<T,Enc>& cbc,Iter begin,Iter end)
+inline constexpr auto receive(basic_icbc<T,Enc>& cbc,Iter begin,Iter end)
 {
-	return cbc.mmreads(begin,end);
+	return cbc.mmreceive(begin,end);
 }
 
-
-template <input_stream T, typename Enc>
-inline constexpr auto try_get(basic_icbc<T,Enc>& cbc)
-{
-	return cbc.mmtry_get();
-}
-
-template <input_stream T, typename Enc>
+template <bool err=false,input_stream T, typename Enc>
 inline constexpr auto get(basic_icbc<T,Enc>& cbc)
 {
-	return cbc.mmget();
+	if constexpr(err)
+		return cbc.mmtry_get();
+	else
+		return cbc.mmget();
 }
 
 template <output_stream T, typename Enc,std::contiguous_iterator Iter>
-inline constexpr void writes(basic_ocbc<T,Enc>& cbc,Iter cbegin,Iter cend)
+inline constexpr void send(basic_ocbc<T,Enc>& cbc,Iter cbegin,Iter cend)
 {
-	cbc.mmwrites(cbegin,cend);
+	cbc.mmsend(cbegin,cend);
 }
 
 template <output_stream T, typename Enc>

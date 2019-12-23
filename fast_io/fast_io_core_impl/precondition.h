@@ -17,4 +17,23 @@ inline constexpr auto seek_precondition(integr i)
 	return static_cast<offset_type>(i);*/
 	return static_cast<offset_type>(i * static_cast<std::ptrdiff_t>(sizeof(T))/static_cast<std::ptrdiff_t>(sizeof(char_type)));
 }
+
+
+template<typename stm>
+requires requires(stm& s)
+{
+	s.native_handle();
+}
+inline constexpr decltype(auto) ultimate_native_handle(stm& s)
+{
+	if constexpr(requires(stm& s)
+	{
+		s.native_handle().native_handle();
+	})
+		return ultimate_native_handle(s.native_handle());
+	else
+		return s.native_handle();
+}
+
+
 }

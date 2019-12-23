@@ -16,7 +16,7 @@ private:
 	void write_remain()
 	{
 		if(iter!=strvw.cend())
-			writes(t,iter,strvw.cend());
+			send(t,iter,strvw.cend());
 	}
 public:
     template<typename T1, typename ...Args>
@@ -31,7 +31,7 @@ public:
 		++iter;
 	}
 	template<std::contiguous_iterator Iter>
-	inline constexpr void mmwrites(Iter b,Iter e)
+	inline constexpr void mmsend(Iter b,Iter e)
 	{
         auto pb(static_cast<char_type const*>(static_cast<void const*>(std::addressof(*b))));
 		auto pi(pb), pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));
@@ -80,9 +80,9 @@ inline constexpr void put(oone_time_pad<T,strT>& oon,typename oone_time_pad<T,st
 	oon.mmput(ch);
 }
 template<character_output_stream T,typename strT,std::contiguous_iterator Iter>
-inline constexpr void writes(oone_time_pad<T,strT>& oon,Iter cbegin,Iter cend)
+inline constexpr void send(oone_time_pad<T,strT>& oon,Iter cbegin,Iter cend)
 {
-	oon.mmwrites(cbegin,cend);
+	oon.mmsend(cbegin,cend);
 }
 template<character_output_stream T,typename strT>
 inline constexpr void flush(oone_time_pad<T,strT>& oon)
@@ -113,7 +113,7 @@ public:
 		return {ch.first^get(istr),false};
 	}
 	template<std::contiguous_iterator Iter>
-	inline constexpr Iter mmreads(Iter b,Iter e)
+	inline constexpr Iter mmreceive(Iter b,Iter e)
 	{
 		auto pb(static_cast<char_type*>(static_cast<void*>(std::addressof(*b))));
 		auto pe(pb+(e-b)*sizeof(*b)/sizeof(char_type));
@@ -130,22 +130,19 @@ public:
 	auto& key_istrview() {return istr;}
 };
 
-template<character_input_stream T,typename strT>
-inline constexpr auto try_get(ione_time_pad<T,strT>& oon)
-{
-	return oon.mmtry_get();
-}
-
-template<character_input_stream T,typename strT>
+template<bool err=false,character_input_stream T,typename strT>
 inline constexpr auto get(ione_time_pad<T,strT>& oon)
 {
-	return oon.mmget();
+	if constexpr(err)
+		return oon.mmtry_get();
+	else
+		return oon.mmget();
 }
 
 template<character_input_stream T,typename strT,std::contiguous_iterator Iter>
-inline constexpr auto reads(ione_time_pad<T,strT>& oon,Iter begin,Iter end)
+inline constexpr auto receive(ione_time_pad<T,strT>& oon,Iter begin,Iter end)
 {
-	return oon.mmreads(begin,end);
+	return oon.mmreceive(begin,end);
 }
 
 }

@@ -840,7 +840,7 @@ inline void output_base_natural_number(output& out,natural a)
 //lower: 97 :a 102 :f
 	if(!a)
 	{
-		put(out,'0');
+		put(out,0x30);
 		return;
 	}
 	std::vector<typename output::char_type> v(a.vec().size()*512/base+3);
@@ -863,7 +863,7 @@ inline void output_base_natural_number(output& out,natural a)
 		else
 			*--iter = static_cast<typename output::char_type>(rem+48);
 	}
-	writes(out,iter,v.data()+v.size());
+	send(out,iter,v.data()+v.size());
 }
 
 
@@ -874,7 +874,7 @@ inline constexpr void input_base_number_phase2_natural(input& in,natural& a)
 	unsigned_char_type constexpr baseed(std::min(static_cast<unsigned_char_type>(base),static_cast<unsigned_char_type>(10)));
 	while(true)
 	{
-		unsigned_char_type ch(try_get(in).first);
+		unsigned_char_type ch(get<true>(in).first);
 		if((ch-=48)<baseed)
 		{
 			a*=base;
@@ -923,7 +923,7 @@ inline constexpr void input_base_natural_number(input& in,natural& a)
 }
 }
 
-template<output_stream output>
+template<character_output_stream output>
 inline constexpr void print_define(output& out,natural const& a)
 {
 	details::output_base_natural_number<10,false>(out,a);

@@ -48,17 +48,17 @@ inline constexpr auto cal_content()
 			if constexpr(10<base)
 			{
 				if(e1<10)
-					e1+='0';
+					e1+=0x30;
 				else
 				{
 					if constexpr(upper)
-						e1+='A'-10;
+						e1+=0x41-10;
 					else
-						e1+='a'-10;
+						e1+=0x61-10;
 				}
 			}
 			else
-				e1+='0';
+				e1+=0x30;
 	return vals;
 }
 

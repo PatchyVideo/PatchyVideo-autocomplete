@@ -1,5 +1,23 @@
 #pragma once
 
+namespace fast_io
+{
+class gai_exception:public std::exception
+{
+	int ec;
+public:
+	explicit gai_exception(int errorc):ec(errorc){}	
+	auto get() const
+	{
+		return ec;
+	}
+	char const* what() const noexcept
+	{
+		return gai_strerror(ec);
+	}
+};
+}
+
 namespace fast_io::sock::details
 {
 namespace
@@ -22,13 +40,13 @@ inline auto socket(Args&& ...args)
 template<typename T>
 inline auto accept(int sck,T& sock_address,socklen_t& storage_size)
 {
-	return call_posix(::accept,sck,std::addressof(sock_address),std::addressof(storage_size));
+	return call_posix(::accept,sck,reinterpret_cast<sockaddr*>(std::addressof(sock_address)),std::addressof(storage_size));
 }
 
 template<typename T,std::unsigned_integral sock_type_size>
 inline auto connect(int sck,T& sock_address,sock_type_size size)
 {
-	return call_posix(::connect,sck,std::addressof(sock_address),size);
+	return call_posix(::connect,sck,reinterpret_cast<sockaddr*>(std::addressof(sock_address)),size);
 }
 
 template<typename ...Args>
@@ -51,7 +69,7 @@ inline auto closesocket(Args&& ...args)
 template<typename T,std::unsigned_integral sock_type_size>
 inline auto bind(int sck,T& sock_address,sock_type_size size)
 {
-	return call_posix(::bind,sck,std::addressof(sock_address),size);
+	return call_posix(::bind,sck,reinterpret_cast<sockaddr*>(std::addressof(sock_address)),size);
 }
 
 template<typename ...Args>
@@ -65,22 +83,6 @@ inline auto listen(Args&& ...args)
 {
 	return call_posix(::listen,std::forward<Args>(args)...);
 }
-
-inline auto inet_pton(family fm,std::string_view address,void* dst)
-{
-	return call_posix(::inet_pton,static_cast<int>(fm),address.data(),dst);
-}
-
-class gai_exception:public std::runtime_error
-{
-	int ec;
-public:
-	explicit gai_exception(int errorc):std::runtime_error(gai_strerror(ec)),ec(errorc){}	
-	auto get() const
-	{
-		return ec;
-	}
-};
 
 template<typename ...Args>
 inline void getaddrinfo(Args&& ...args)
