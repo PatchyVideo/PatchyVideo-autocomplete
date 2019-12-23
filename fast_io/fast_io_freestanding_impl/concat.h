@@ -2,9 +2,9 @@
 
 namespace fast_io
 {
-//potential constexpr in the future if std::string can be constexpr
+//potential constexpr in the future if std::u8string can be constexpr
 
-template<typename T=std::string,typename... Args>
+template<typename T=std::u8string,typename... Args>
 inline constexpr T concat(Args&& ...args)
 {
 	basic_ostring<T> t;
@@ -12,7 +12,7 @@ inline constexpr T concat(Args&& ...args)
 	return std::move(t.str());
 }
 
-template<typename T=std::string,typename... Args>
+template<typename T=std::u8string,typename... Args>
 inline constexpr T concatln(Args&& ...args)
 {
 	basic_ostring<T> t;
@@ -20,8 +20,8 @@ inline constexpr T concatln(Args&& ...args)
 	return std::move(t.str());
 }
 
-template<typename T=std::string,typename... Args>
-inline constexpr T format(std::string_view format,Args&& ...args)
+template<typename T=std::u8string,typename... Args>
+inline constexpr T format(std::u8string_view format,Args&& ...args)
 {
 	basic_ostring<T> t;
 	fprint(t,format,std::forward<Args>(args)...);
@@ -31,16 +31,16 @@ inline constexpr T format(std::string_view format,Args&& ...args)
 template<typename T,typename... Args>
 inline constexpr void in_place_to(T& t,Args&& ...args)
 {
-	basic_ostring<std::string> os;
+	basic_ostring<std::u8string> os;
 	print(os,std::forward<Args>(args)...);
-	basic_istring_view<std::string_view> is(os.str());
+	basic_istring_view<std::u8string_view> is(os.str());
 	scan(is,t);
 }
 
 template<typename... Args>
-inline constexpr void in_place_to(std::string& t,Args&& ...args)
+inline constexpr void in_place_to(std::u8string& t,Args&& ...args)
 {
-	basic_ostring<std::string> os(std::move(t));
+	basic_ostring<std::u8string> os(std::move(t));
 	os.clear();
 	print(os,std::forward<Args>(args)...);
 	t=std::move(os.str());

@@ -3,7 +3,7 @@
 #include"fast_io_hosted.h"
 //This header file defines in/out/err/log like traditional C/C++ does
 //out and err will direct write to system call.
-//The magic here is that data will first write to std::string and then write out
+//The magic here is that data will first write to std::u8string and then write out
 //There is no way to implement in without a buffer. input must have a buffer.
 
 namespace fast_io

@@ -40,7 +40,7 @@ private:
 		auto constexpr ch_bits_m2(ch_bits-2);
 		auto constexpr limitm1((static_cast<unsigned_native_char_type>(1)<<ch_bits_m2)-1);
 		if(!u.bts.test(ch_bits_m2))
-			throw std::runtime_error("not a utf8 character");
+			throw std::runtime_error(reinterpret_cast<char const*>(u8"not a utf8 character"));
 		u.bts.reset(ch_bits-1);
 		std::size_t pos(ch_bits_m2-1);
 		for(;pos<ch_bits&&u.bts.test(pos);--pos)
@@ -53,7 +53,7 @@ private:
 			if((t>>ch_bits_m2)==2)
 				converted_ch=((converted_ch<<ch_bits_m2)|(t&limitm1))&((1<<((i+2)*6)) -1);
 			else
-				throw std::runtime_error("not a utf8 character");
+				throw std::runtime_error(reinterpret_cast<char const*>(u8"not a utf8 character"));
 		}
 		return converted_ch;
 	}
@@ -140,15 +140,15 @@ inline constexpr Iter receive(ucs<T,char_type>& uc,Iter b,Iter e)
 }
 
 template<typename T>
-inline constexpr void in_place_utf8_to_ucs(T& t,std::string_view view)
+inline constexpr void in_place_utf8_to_ucs(T& t,std::u8string_view view)
 {
-	basic_istring_view<std::string_view> ibsv(view);
+	basic_istring_view<std::u8string_view> ibsv(view);
 	ucs<decltype(ibsv),typename T::value_type> uv(ibsv);
 	getwhole(uv,t);
 }
 
 template<typename T=std::wstring>
-inline constexpr auto utf8_to_ucs(std::string_view view)
+inline constexpr auto utf8_to_ucs(std::u8string_view view)
 {
 	T t;
 	in_place_utf8_to_ucs(t,view);
@@ -158,49 +158,49 @@ inline constexpr auto utf8_to_ucs(std::string_view view)
 namespace details
 {
 template<typename T>
-inline void in_place_ucs_to_utf8(std::string& v,std::basic_string_view<T> view)
+inline void in_place_ucs_to_utf8(std::u8string& v,std::basic_string_view<T> view)
 {
 	v.clear();
-	ucs<basic_ostring<std::string>,T> uv(std::move(v));
+	ucs<basic_ostring<std::u8string>,T> uv(std::move(v));
 	send(uv,view.cbegin(),view.cend());
 	v=std::move(uv.native_handle().str());
 }
 
 template<typename T>
-inline std::string ucs_to_utf8(std::basic_string_view<T> view)
+inline std::u8string ucs_to_utf8(std::basic_string_view<T> view)
 {
-	ucs<basic_ostring<std::string>,T> uv;
+	ucs<basic_ostring<std::u8string>,T> uv;
 	send(uv,view.cbegin(),view.cend());
 	return std::move(uv.native_handle().str());
 }
 }
 
-inline void in_place_ucs_to_utf8(std::string& v,std::wstring_view view)
+inline void in_place_ucs_to_utf8(std::u8string& v,std::wstring_view view)
 {
 	details::in_place_ucs_to_utf8(v,view);
 }
 
-inline std::string ucs_to_utf8(std::wstring_view v)
+inline std::u8string ucs_to_utf8(std::wstring_view v)
 {
 	return details::ucs_to_utf8(v);
 }
 
-inline void in_place_ucs_to_utf8(std::string& v,std::u16string_view view)
+inline void in_place_ucs_to_utf8(std::u8string& v,std::u16string_view view)
 {
 	details::in_place_ucs_to_utf8(v,view);
 }
 
-inline std::string ucs_to_utf8(std::u16string_view v)
+inline std::u8string ucs_to_utf8(std::u16string_view v)
 {
 	return details::ucs_to_utf8(v);
 }
 
-inline void in_place_ucs_to_utf8(std::string& v,std::u32string_view view)
+inline void in_place_ucs_to_utf8(std::u8string& v,std::u32string_view view)
 {
 	details::in_place_ucs_to_utf8(v,view);
 }
 
-inline std::string ucs_to_utf8(std::u32string_view v)
+inline std::u8string ucs_to_utf8(std::u32string_view v)
 {
 	return details::ucs_to_utf8(v);
 }

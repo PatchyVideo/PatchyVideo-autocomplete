@@ -56,9 +56,9 @@ public:
 		if(!value)
 			cont.pop_back();
 	}
-	explicit natural(std::string_view sv)
+	explicit natural(std::u8string_view sv)
 	{
-		istring_view is(sv);
+		u8istring_view is(sv);
 		scan_define(is,*this);
 	}
 	auto& vec() {return cont;}
@@ -162,8 +162,8 @@ public:
 			cont.clear();
 			return *this;
 		}
-		auto data8(static_cast<std::uint8_t const*>(static_cast<void const*>(cont.data())));
-		auto other_data8(static_cast<std::uint8_t const*>(static_cast<void const*>(other.cont.data())));
+		auto data8(static_cast<char8_t const*>(static_cast<void const*>(cont.data())));
+		auto other_data8(static_cast<char8_t const*>(static_cast<void const*>(other.cont.data())));
 		std::size_t n(cont.size()*8);
 		std::size_t m(other.cont.size()*8);
 		std::size_t p(m+n-2);
@@ -832,7 +832,7 @@ natural mul_fft(const natural& lhs, const natural& rhs) const {
 namespace details
 {
 
-template<std::uint8_t base,bool uppercase,character_output_stream output>
+template<char8_t base,bool uppercase,character_output_stream output>
 inline void output_base_natural_number(output& out,natural a)
 {
 //number: 0:48 9:57
@@ -867,7 +867,7 @@ inline void output_base_natural_number(output& out,natural a)
 }
 
 
-template<std::uint8_t base,character_input_stream input>
+template<char8_t base,character_input_stream input>
 inline constexpr void input_base_number_phase2_natural(input& in,natural& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -896,7 +896,7 @@ inline constexpr void input_base_number_phase2_natural(input& in,natural& a)
 	}
 }
 
-template<std::uint8_t base,character_input_stream input>
+template<char8_t base,character_input_stream input>
 inline constexpr void input_base_natural_number(input& in,natural& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -967,27 +967,27 @@ inline void read_define(input& in,natural& n)
 
 namespace literals
 {
-inline natural operator "" _n(char const* cstr, size_t n)
+inline natural operator "" _n(char8_t const* cstr, size_t n)
 {
-	return natural(std::string_view{cstr, n});
+	return natural(std::u8string_view{cstr, n});
 }
-inline natural operator "" _nb(char const* cstr, size_t n)
+inline natural operator "" _nb(char8_t const* cstr, size_t n)
 {
-	istring_view view{cstr, n};
+	u8istring_view view{cstr, n};
 	natural nt;
 	scan_define(view,bin(nt));
 	return nt;
 }
-inline natural operator "" _no(char const* cstr, size_t n)
+inline natural operator "" _no(char8_t const* cstr, size_t n)
 {
-	istring_view view{cstr, n};
+	u8istring_view view{cstr, n};
 	natural nt;
 	scan_define(view,oct(nt));
 	return nt;
 }
-inline natural operator "" _nh(char const* cstr, size_t n)
+inline natural operator "" _nh(char8_t const* cstr, size_t n)
 {
-	istring_view view{cstr, n};
+	u8istring_view view{cstr, n};
 	natural nt;
 	scan_define(view,hex(nt));
 	return nt;

@@ -18,7 +18,7 @@ inline constexpr std::size_t read_size(input& in)
 		if(ch<limit)
 			return temp;
 	}
-	throw std::runtime_error("size is out of std::size_t range");
+	throw std::runtime_error(reinterpret_cast<char const*>(u8"size is out of std::size_t range"));
 }
 
 template<character_output_stream output>

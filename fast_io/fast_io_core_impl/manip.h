@@ -22,7 +22,7 @@ struct signed_view
 	T& reference;
 };
 
-template<std::size_t w,bool left,char char_type,typename T>
+template<std::size_t w,bool left,char8_t char_type,typename T>
 struct width
 {
 	T& reference;
@@ -63,7 +63,11 @@ struct shortest_shortest
 {
 	T& reference;
 };
-
+//learn from rust
+struct from_utf8_unchecked
+{
+	std::string_view str_view;
+};
 }
 template<typename T>
 requires (std::floating_point<T>||std::integral<T>)
@@ -159,29 +163,55 @@ inline void scan_define(input& in,manip::char_view<T> a)
 {
 	a.reference = get(in);
 }
-
+/*
 template<character_output_stream output,std::integral T>
 inline void print_define(output& out,manip::char_view<T> a)
 {
 	put(out,static_cast<typename output::char_type>(a.reference));
 }
-
+*/
 template<character_input_stream input,std::floating_point T>
 inline void scan_define(input& in,manip::char_view<T> a)
 {
 	a.reference = get(in);
 }
 
-template<character_output_stream output,std::floating_point T>
+template<character_output_stream output,typename T>
+requires ((std::integral<T>||std::floating_point<T>)&&(std::same_as<typename output::char_type,char>||(!std::same_as<T,char>)))
 inline void print_define(output& out,manip::char_view<T> a)
 {
 	put(out,static_cast<typename output::char_type>(a.reference));
 }
 
-template<std::size_t indent_w,bool left=false,char fill_ch=0x20,typename T>
+template<std::size_t indent_w,bool left=false,char8_t fill_ch=0x20,typename T>
 inline constexpr manip::width<indent_w,left,fill_ch,T const> width(T const& t)
 {
 	return {t};
 }
+
+//https://doc.rust-lang.org/std/str/fn.from_utf8_unchecked.html
+//learn from rust
+inline constexpr manip::from_utf8_unchecked from_utf8_unchecked(std::string_view char_str_series)
+{
+	return {char_str_series};
+}
+
+template<output_stream output>
+requires (std::same_as<typename output::char_type,char8_t>)
+inline void print_define(output& out,manip::from_utf8_unchecked a)
+{
+	send(out,a.str_view);
+}
+
+template<output_stream output>
+requires (std::same_as<typename output::char_type,char>)
+inline void print_define(output& out,std::u8string_view u8vw)
+{
+	send(out,u8vw);
+}
+
+template<output_stream output,std::size_t n>
+requires (std::same_as<typename output::char_type,char>)
+inline void print_define(output& out,char const (&str)[n])=delete;
 
 }

@@ -41,6 +41,8 @@ struct floating_traits<double>
 	static inline constexpr exponent_type bound = 63;//ryu to do. use a tigher bound
 	static inline constexpr exponent_type digits10=17;
 	static inline constexpr mantissa_type carry10=0x2386F26FC10000;
+	static inline constexpr int32_t minimum_exp=-323;
+	static inline constexpr int32_t maximum_exp=309;
 };
 
 template<>	
@@ -202,7 +204,7 @@ requires std::same_as<T,std::int32_t>
 inline constexpr Iter output_exp(T exp,Iter result)
 {
 	if constexpr(uppercase_e)
-		*result=0X65;
+		*result=0x41;
 	else
 		*result=0x65;
 	++result;
@@ -731,21 +733,21 @@ inline constexpr Iter output_shortest(Iter result, F d)
 			vr_is_trailing_zeros=multiple_of_power_of_2(mv,q);
 	}
 	signed_exponent_type removed(0);
-	std::uint8_t last_removed_digit(0);
+	char8_t last_removed_digit(0);
 	if(vm_is_trailing_zeros||vr_is_trailing_zeros)
 	{
 		for(;;)
 		{
 			mantissa_type const vpdiv10(v[1]/10);
 			mantissa_type const vmdiv10(v[2]/10);
-			auto const vmmod10(static_cast<std::uint8_t>(v[2]%10));
+			auto const vmmod10(static_cast<char8_t>(v[2]%10));
 			if(vpdiv10 <= vmdiv10)
 				break;
 			mantissa_type const vrdiv10(v.front()/10);
-			auto const vrmod10(static_cast<std::uint8_t>(v.front()%10));
+			auto const vrmod10(static_cast<char8_t>(v.front()%10));
 			vm_is_trailing_zeros&=!vmmod10;
 			vr_is_trailing_zeros&=!last_removed_digit;
-			last_removed_digit=static_cast<std::uint8_t>(vrmod10);
+			last_removed_digit=static_cast<char8_t>(vrmod10);
 			v.front()=vrdiv10;
 			v[1]=vpdiv10;
 			v[2]=vmdiv10;
@@ -755,14 +757,14 @@ inline constexpr Iter output_shortest(Iter result, F d)
 			for(;;)
 			{
 				mantissa_type const vmdiv10(v[2]/10);
-				auto const vmmod10(static_cast<std::uint8_t>(v[2]%10));
+				auto const vmmod10(static_cast<char8_t>(v[2]%10));
 				if(vmmod10)
 					break;
 				mantissa_type const vpdiv10(v[1]/10);
 				mantissa_type const vrdiv10(v.front()/10);
 				auto const vrmod10(v.front()%10);
 				vr_is_trailing_zeros&=!last_removed_digit;
-				last_removed_digit=static_cast<std::uint8_t>(vrmod10);
+				last_removed_digit=static_cast<char8_t>(vrmod10);
 				v.front()=vrdiv10;
 				v[1]=vpdiv10;
 				v[2]=vmdiv10;

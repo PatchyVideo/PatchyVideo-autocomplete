@@ -230,7 +230,7 @@ inline constexpr void send(sha1& sh,Iter cbegin,Iter cend)
 	sh.pos+=e-b;
 }
 
-//[[deprecated("sha1 is no longer a secure algorithm, see wikipedia. The SHAppening: https://en.wikipedia.org/wiki/SHA-1#The_SHAppening")]] 
+[[deprecated(u8"sha1 is no longer a secure algorithm, see wikipedia. The SHAppening: https://en.wikipedia.org/wiki/SHA-1#The_SHAppening")]] 
 inline constexpr void flush(sha1& sh)
 {
 	std::uint64_t const total_count((sh.transforms*64+sh.pos)<<3);

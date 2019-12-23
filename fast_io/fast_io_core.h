@@ -43,7 +43,7 @@
 // Provide template prototype for custom string types
 #include"fast_io_core_impl/ostring.h"
 //#include"fast_io_core_impl/istack.h"
-
+#include"fast_io_core_impl/ebcdic.h"
 // Precondition should be removed in the future. Programming bugs
 #include"fast_io_core_impl/precondition.h"
 #include"fast_io_core_impl/sendrecv.h"

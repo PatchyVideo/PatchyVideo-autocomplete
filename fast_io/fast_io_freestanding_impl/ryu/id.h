@@ -14,7 +14,7 @@ inline constexpr F input_floating(input& in)
 	using signed_exponent_type = std::make_signed_t<exponent_type>;
 	mantissa_type ipart{};
 	bool negative{};
-	std::uint8_t phase2{};
+	char8_t phase2{};
 	//.(46)-48: static_cast<unsigned_char_type>(-2)
 	//-(45)-48: static_cast<unsigned_char_type>(-3)
 	//'E'(69)-48: 21

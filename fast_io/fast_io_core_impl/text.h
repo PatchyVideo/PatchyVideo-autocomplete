@@ -17,8 +17,7 @@ struct text_view_interal_variable<T>
 };
 
 }
-namespace details
-{
+
 enum class operating_system
 {
 	win32,
@@ -29,7 +28,6 @@ enum class operating_system
 	native=posix
 #endif
 };
-}
 
 template<typename T,bool sys=false>
 requires character_input_stream<T>||character_output_stream<T>
@@ -125,7 +123,7 @@ constexpr inline Iter receive(text_view<T,sys>& input,Iter b,Iter e)
 template<character_output_stream T,bool sys>
 constexpr inline void put(text_view<T,sys>& output,typename text_view<T,sys>::char_type ch)
 {
-	if constexpr((!sys)||details::operating_system::win32==details::operating_system::native)
+	if constexpr((!sys)||operating_system::win32==operating_system::native)
 		if(ch==0xA)
 			put(output.ib,0xD);
 	put(output.ib,ch);
@@ -135,7 +133,7 @@ template<character_output_stream T,bool sys,std::contiguous_iterator Iter>
 constexpr inline void send(text_view<T,sys>& output,Iter b,Iter e)
 {
 	using char_type = T::char_type;
-	if constexpr(sys&&details::operating_system::win32!=details::operating_system::native)
+	if constexpr(sys&&operating_system::win32!=operating_system::native)
 		send(output,b,e);
 	else
 	{
@@ -162,7 +160,7 @@ constexpr inline void flush(text_view<T,sys>& output)
 template<stream T,bool sys>
 inline constexpr void fill_nc(text_view<T,sys>& view,std::size_t count,typename T::char_type const& ch)
 {
-	if constexpr((!sys)||details::operating_system::win32==details::operating_system::native)
+	if constexpr((!sys)||operating_system::win32==operating_system::native)
 	{
 		if(ch==0xA)
 		{
@@ -178,14 +176,14 @@ inline constexpr void fill_nc(text_view<T,sys>& view,std::size_t count,typename 
 }
 
 template<buffer_output_stream T,bool sys>
-requires (sys&&details::operating_system::win32!=details::operating_system::native)
+requires (sys&&operating_system::win32!=operating_system::native)
 inline constexpr void oreserve(text_view<T,sys>& view,std::size_t size)
 {
 	oreserve(view.ib,size);
 }
 
 template<buffer_output_stream T,bool sys>
-requires (sys&&details::operating_system::win32!=details::operating_system::native)
+requires (sys&&operating_system::win32!=operating_system::native)
 inline constexpr void orelease(text_view<T,sys>& view,std::size_t size)
 {
 	orelease(view.ib,size);

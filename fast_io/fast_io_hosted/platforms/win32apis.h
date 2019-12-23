@@ -9,7 +9,7 @@ std::uint32_t __stdcall GetLastError(void);
 void * __stdcall LoadLibraryW(wchar_t const*);
 
 // Used to retrieve a locale-specific message string for some error code
-std::uint32_t __stdcall FormatMessageW(std::uint32_t, void const*, std::uint32_t,std::uint32_t, wchar_t*, std::uint32_t, void /*va_list*/ *);
+std::uint32_t __stdcall FormatMessageA(std::uint32_t, void const*, std::uint32_t,std::uint32_t, char*, std::uint32_t, void /*va_list*/ *);
 
 struct security_attributes
 {
@@ -22,7 +22,7 @@ int __stdcall CloseHandle(void*);
 
 void* __stdcall CreateFileW(wchar_t const*,std::uint32_t,std::uint32_t,security_attributes*,std::uint32_t,std::uint32_t,void*);
 
-void* __stdcall CreateFileW(wchar_t const*,std::uint32_t,std::uint32_t,security_attributes*,std::uint32_t,std::uint32_t,void*);
+void* __stdcall CreateFileA(char const*,std::uint32_t,std::uint32_t,security_attributes*,std::uint32_t,std::uint32_t,void*);
 
 struct overlapped
 {

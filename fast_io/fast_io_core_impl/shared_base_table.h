@@ -26,9 +26,9 @@ inline constexpr auto cal_content()
 {
 	constexpr auto val(cal_base_pw_size(base));
 	constexpr std::size_t chars(val.first);
-	static_assert(1<chars,"table width must be larger than 1");
+	static_assert(1<chars,u8"table width must be larger than 1");
 	constexpr std::size_t pw(val.second);
-	std::array<std::array<char,chars>,pw> vals{};
+	std::array<std::array<char8_t,chars>,pw> vals{};
 	for(std::size_t i(1);i<pw;++i)
 	{
 		auto& val(vals[i]);

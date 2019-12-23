@@ -46,13 +46,40 @@ inline constexpr void idump(output& out,basic_istring_view<T>& isv)
 }
 
 template<typename T,std::contiguous_iterator Iter>
+requires (sizeof(typename T::value_type)==1||
+	std::same_as<typename T::value_type,typename std::iterator_traits<Iter>::value_type>)
 inline constexpr Iter receive(basic_istring_view<T>& istrvw,Iter begin,Iter end)
 {
-	auto pb(static_cast<typename T::value_type*>(static_cast<void*>(std::to_address(begin))));
-	auto pe(static_cast<typename T::value_type*>(static_cast<void*>(std::to_address(end))));
-	std::size_t const cped(istrvw.str().copy(pb,pe-pb));
-	istrvw.str().remove_prefix(cped);
-	return begin+cped*sizeof(*begin)/sizeof(typename T::value_type);
+	using char_type = typename T::value_type;
+	using iter_value_type = typename std::iterator_traits<Iter>::value_type;
+	if constexpr(std::same_as<char_type,iter_value_type>)
+	{
+		std::size_t const cped(istrvw.str().copy(std::to_address(begin),
+			std::to_address(end)-std::to_address(begin)));
+		istrvw.str().remove_prefix(cped);
+		return begin+cped;
+	}
+	else
+	{
+		auto pb(std::to_address(begin));
+		auto pe(std::to_address(end));
+		std::size_t const bytes((pe-pb)*sizeof(iter_value_type));
+		if(istrvw.str().size()<bytes)
+		{
+			std::size_t const need_copied();
+			std::size_t const copied(istrvw.str().size()/sizeof(iter_value_type));
+			std::memcpy(pb,istrvw.str().data(),copied*sizeof(iter_value_type));
+			istrvw.str()={};
+			return begin+copied;	
+		}
+		else
+		{
+			std::memcpy(pb,istrvw.str().data(),bytes);
+			istrvw.str().remove_prefix(bytes);
+			return end;
+		}
+	}
+
 }
 
 template<bool err=false,typename T>
@@ -79,6 +106,6 @@ inline constexpr auto get(basic_istring_view<T>& istrvw)
 		return ch;
 }
 
-using istring_view = basic_istring_view<std::string_view>;
+using u8istring_view = basic_istring_view<std::u8string_view>;
 
 }

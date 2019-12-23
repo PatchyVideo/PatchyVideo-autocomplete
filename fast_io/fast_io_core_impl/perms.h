@@ -71,7 +71,7 @@ inline constexpr perms_interface_t<pm> perms_interface{};
 
 namespace details::perm
 {
-template<char fillch,character_output_stream output>
+template<char8_t fillch,character_output_stream output>
 inline constexpr void print_perm_per_check(output& out,perms p,perms checked)
 {
 	if((p&checked)==perms::none)

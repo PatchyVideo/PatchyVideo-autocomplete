@@ -14,8 +14,6 @@ class socket
 	}
 	catch(...)
 	{}
-protected:
-	auto& protected_native_handle() {return handle;}
 public:
 	socket()=default;
 	socket(sock::details::socket_type v):handle(v){}
@@ -23,7 +21,7 @@ public:
 	socket(native_interface_t,Args&& ...args):handle(sock::details::socket(std::forward<Args>(args)...)){}
 	socket(sock::family family,sock::type const &type,sock::protocal const &protocal = sock::protocal::none):
 		handle(sock::details::socket(static_cast<sock::details::address_family>(family),static_cast<int>(type),static_cast<int>(protocal))){}
-	auto native_handle() {return handle;}
+	auto& native_handle() {return handle;}
 	socket(socket const&) = delete;
 	socket& operator=(socket const&) = delete;
 	socket(socket && soc) noexcept:handle(soc.handle)
@@ -74,13 +72,14 @@ struct address_info
 	socklen_t storage_size=sizeof(socket_address_storage);
 };
 
-class client:public socket
+template<std::integral ch_type>
+class basic_client:public socket
 {
 	address_info cinfo;
 public:
-	using char_type = char;
+	using char_type = ch_type;
 	template<typename T,std::integral U,typename ...Args>
-	client(T const& add,U u,Args&& ...args):socket(family(add),std::forward<Args>(args)...),cinfo{to_socket_address_storage(add,u),sizeof(socket_address_storage)}
+	basic_client(T const& add,U u,Args&& ...args):socket(family(add),std::forward<Args>(args)...),cinfo{to_socket_address_storage(add,u),sizeof(socket_address_storage)}
 	{
 		sock::details::connect(native_handle(),cinfo.storage,native_socket_address_size(add));
 	}
@@ -163,22 +162,23 @@ explicit constexpr non_block_t()=default;
 
 inline constexpr non_block_t non_block{};
 
-class acceptor:public socket
+template<std::integral ch_type>
+class basic_acceptor:public socket
 {
 	address_info cinfo;
 public:
 	using native_handle_type = sock::details::socket_type;
-	using char_type = char;
-	acceptor(server& listener_socket)
+	using char_type = ch_type;
+	basic_acceptor(server& listener_socket)
 	{
-		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+		native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
 	}
-	acceptor(async_server& listener_socket)
+	basic_acceptor(async_server& listener_socket)
 	{
 #if defined(__WINNT__) || defined(_MSC_VER)
-		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+		native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
 #else
-		protected_native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
+		native_handle()=sock::details::accept(listener_socket.native_handle().native_handle(),cinfo.storage,cinfo.storage_size);
 		unblock(*this);
 #endif
 	}

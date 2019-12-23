@@ -13,7 +13,7 @@ struct base_number_upper_constraints
 	static constexpr bool value = 2<=bs&&bs<=36&&((bs<=10&&!uppercase)||10<bs);
 };
 
-template<std::uint8_t base,bool uppercase,bool point=false,std::random_access_iterator Iter,typename U>
+template<char8_t base,bool uppercase,bool point=false,std::random_access_iterator Iter,typename U>
 requires (!std::signed_integral<U>)
 inline constexpr auto output_base_number_impl(Iter iter,U a)
 {
@@ -27,7 +27,10 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 	{
 		auto const rem(a%pw);
 		a/=pw;
-		std::copy_n(table[rem].data(),chars,iter-=chars);
+		if constexpr(std::is_pointer_v<Iter>&&sizeof(*iter)==1)
+			memcpy(iter-=chars,table[rem].data(),chars);
+		else
+			std::copy_n(table[rem].data(),chars,iter-=chars);
 	}
 	if constexpr(chars==2)
 	{
@@ -43,7 +46,10 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 			}
 			else
 			{
-				std::copy_n(tm.data(),chars,iter-=chars);
+				if constexpr(std::is_pointer_v<Iter>&&sizeof(*iter)==1)
+					memcpy(iter-=chars,tm.data(),chars);
+				else
+					std::copy_n(tm.data(),chars,iter-=chars);
 			}
 		}
 		else
@@ -76,12 +82,21 @@ inline constexpr auto output_base_number_impl(Iter iter,U a)
 			auto const ed(tm.data()+chars);
 			if constexpr(point)
 			{
-				std::copy(i+1,ed,iter-=ed-(i+1));
+//				std::copy(i+1,ed,iter-=ed-(i+1));
+				if constexpr(std::is_pointer_v<Iter>&&sizeof(*iter)==1)
+					memcpy(iter-=ed-i-1,i+1,ed-i-1);
+				else
+					std::copy(i+1,ed,iter-=ed-(i+1));
 				*--iter=0x2E;
 				*--iter=*i;
 			}
 			else
-				std::copy(i,ed,iter-=ed-i);
+			{
+				if constexpr(std::is_pointer_v<Iter>&&sizeof(*iter)==1)
+					memcpy(iter-=ed-i,i,ed-i);
+				else
+					std::copy(i,ed,iter-=ed-i);				
+			}
 		}
 		else
 		{
@@ -188,7 +203,7 @@ inline constexpr std::size_t chars_len(U value) noexcept
 }
 
 
-template<std::uint8_t base,bool uppercase,bool ln=false,output_stream output,std::unsigned_integral U>
+template<char8_t base,bool uppercase,bool ln=false,output_stream output,std::unsigned_integral U>
 inline constexpr void output_base_number(output& out,U a)
 {
 	if constexpr(buffer_output_stream<output>)
@@ -208,7 +223,7 @@ inline constexpr void output_base_number(output& out,U a)
 			else
 			{
 				*--reserved=0xA;
-				output_base_number_impl<base,uppercase>(reserved,a);
+				output_base_number_impl<base,uppercase>(std::to_address(reserved),a);
 				return;
 			}
 		}
@@ -225,7 +240,7 @@ inline constexpr void output_base_number(output& out,U a)
 			}
 			else
 			{
-				output_base_number_impl<base,uppercase>(reserved,a);
+				output_base_number_impl<base,uppercase>(std::to_address(reserved),a);
 				return;
 			}
 		}
@@ -245,7 +260,7 @@ inline constexpr void output_base_number(output& out,U a)
 	}
 }
 
-template<std::uint8_t base,bool uppercase,bool ln=false,output_stream output,std::signed_integral T>
+template<char8_t base,bool uppercase,bool ln=false,output_stream output,std::signed_integral T>
 inline constexpr void output_base_number(output& out,T b)
 {
 	bool const minus(b<0);
@@ -318,7 +333,7 @@ inline constexpr void output_base_number(output& out,T b)
 	}
 }
 
-template<std::uint8_t base,character_input_stream input,std::integral U>
+template<char8_t base,character_input_stream input,std::integral U>
 inline constexpr void input_base_number_phase2(input& in,U& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -341,7 +356,7 @@ inline constexpr void input_base_number_phase2(input& in,U& a)
 	}
 }
 
-template<std::uint8_t base,character_input_stream input,std::unsigned_integral U>
+template<char8_t base,character_input_stream input,std::unsigned_integral U>
 inline constexpr void input_base_number(input& in,U& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -366,7 +381,7 @@ inline constexpr void input_base_number(input& in,U& a)
 	}
 	input_base_number_phase2<base>(in,a);
 }
-template<std::uint8_t base,character_input_stream input, std::signed_integral T>
+template<char8_t base,character_input_stream input, std::signed_integral T>
 inline constexpr void input_base_number(input& in,T& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -505,14 +520,14 @@ template<std::size_t base,bool uppercase,output_stream output,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void print_define(output& out,manip::base_t<base,uppercase,T> v)
 {
-	details::output_base_number<base,uppercase>(out,std::to_integer<char unsigned>(v.reference));
+	details::output_base_number<base,uppercase>(out,std::to_integer<char8_t>(v.reference));
 }
 
 template<std::size_t base,bool uppercase,character_input_stream input,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void scan_define(input& in,manip::base_t<base,uppercase,T> v)
 {
-	char unsigned u{};
+	char8_t u{};
 	details::input_base_number<base>(in,u);
 	v.reference=static_cast<std::byte>(u);
 }
@@ -522,7 +537,7 @@ template<character_input_stream input,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void scan_define(input& in,T& a)
 {
-	char unsigned u{};
+	char8_t u{};
 	details::input_base_number<10>(in,u);
 	a=static_cast<std::byte>(u);
 }
@@ -531,14 +546,14 @@ template<output_stream output,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void print_define(output& out,T& a)
 {
-	details::output_base_number<10,false>(out,std::to_integer<char unsigned>(a));
+	details::output_base_number<10,false>(out,std::to_integer<char8_t>(a));
 }
 
 template<output_stream output,typename T>
 requires std::same_as<std::byte,std::remove_cvref_t<T>>
 inline constexpr void println_define(output& out,T& a)
 {
-	details::output_base_number<10,false,true>(out,std::to_integer<char unsigned>(a));
+	details::output_base_number<10,false,true>(out,std::to_integer<char8_t>(a));
 }
 
 

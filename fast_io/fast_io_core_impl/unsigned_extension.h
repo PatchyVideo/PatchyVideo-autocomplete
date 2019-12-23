@@ -25,11 +25,11 @@ struct basic_unsigned_extension
 
 	inline constexpr bool operator[](std::size_t n) const
 	{
-		return (static_cast<std::uint8_t const*>(static_cast<void const*>(this))[n / 8] >> (n % 8)) & 1;
+		return (static_cast<char8_t const*>(static_cast<void const*>(this))[n / 8] >> (n % 8)) & 1;
 	}
 	inline constexpr bool front() const
 	{
-		return (*static_cast<std::uint8_t const*>(static_cast<void const*>(this)))&1;
+		return (*static_cast<char8_t const*>(static_cast<void const*>(this)))&1;
 	}
 	inline explicit constexpr operator T() const
 	{
@@ -660,7 +660,7 @@ inline constexpr auto pow(basic_unsigned_extension<T> lhs, P rhs)
 namespace details
 {
 
-template<std::uint8_t base,bool uppercase,character_output_stream output,typename T>
+template<char8_t base,bool uppercase,character_output_stream output,typename T>
 inline void output_base_extension_number(output& out,basic_unsigned_extension<T> a)
 {
 //number: 0:48 9:57
@@ -714,7 +714,7 @@ inline constexpr void print_define(output& out,manip::base_t<base,uppercase,basi
 
 namespace details
 {
-template<std::uint8_t base,character_input_stream input,typename T>
+template<char8_t base,character_input_stream input,typename T>
 inline constexpr void input_base_number_phase2_extension(input& in,basic_unsigned_extension<T>& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;
@@ -740,7 +740,7 @@ inline constexpr void input_base_number_phase2_extension(input& in,basic_unsigne
 	}
 }
 
-template<std::uint8_t base,character_input_stream input,typename T>
+template<char8_t base,character_input_stream input,typename T>
 inline constexpr void input_base_extension_number(input& in,basic_unsigned_extension<T>& a)
 {
 	using unsigned_char_type = std::make_unsigned_t<decltype(get(in))>;

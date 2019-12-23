@@ -1,7 +1,7 @@
 #pragma once
 
 //fast_io_legacy.h deals with legacy C <stdio.h> and C++ <iostream>/<fstream>/<sstream> interface
-#include"fast_io_freestanding.h"
+#include"fast_io_hosted.h"
 #include"fast_io_legacy_impl/c_style.h"
 #include"fast_io_legacy_impl/stream_view.h"
 #include"fast_io_legacy_impl/streambuf_view.h"

@@ -9,7 +9,8 @@ class eof:public std::exception
 {
 public:
 	explicit eof()=default;
-	char const* what() const noexcept{return "EOF";}
+	char const* what() const noexcept override
+	{return reinterpret_cast<char const*>(u8"EOF");}
 };
 
 

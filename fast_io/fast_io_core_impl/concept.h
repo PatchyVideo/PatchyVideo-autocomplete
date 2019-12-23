@@ -57,11 +57,11 @@ namespace dummy
 {
 	struct dummy_output_stream
 	{
-		using char_type = char;
+		using char_type = char8_t;
 	};
-	inline void flush(dummy_output_stream&){}
+	inline constexpr void flush(dummy_output_stream&){}
 	template<std::contiguous_iterator Iter>
-	inline void send(dummy_output_stream&,Iter,Iter){}
+	inline constexpr void send(dummy_output_stream&,Iter,Iter){}
 }
 
 template<typename T>

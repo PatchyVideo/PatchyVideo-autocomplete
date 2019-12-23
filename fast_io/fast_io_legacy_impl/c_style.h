@@ -4,34 +4,84 @@
 namespace fast_io
 {
 
-class c_style_io_handle_unlocked
+template<std::integral ch_type>
+requires (std::same_as<ch_type,char>||std::same_as<ch_type,wchar_t>)
+class basic_c_style_io_handle_unlocked
 {
 	std::FILE *fp;
-protected:
-	auto& protected_native_handle()
-	{
-		return fp;
-	}
 public:
-	c_style_io_handle_unlocked(std::FILE* fpp):fp(fpp){}
-	using char_type = char;
+	basic_c_style_io_handle_unlocked(std::FILE* fpp):fp(fpp){}
+	using char_type = ch_type;
 	using native_handle_type = std::FILE*;
-	native_handle_type native_handle() const
+	native_handle_type& native_handle()
 	{
 		return fp;
 	}
+	explicit operator basic_posix_io_handle<char_type>() const
+	{
+		return static_cast<basic_posix_io_handle<char_type>>(
+#if defined(__WINNT__) || defined(_MSC_VER)
+	_fileno(fp)
+#else
+	::fileno_unlocked(fp)
+#endif
+);
+	}
+#if defined(__WINNT__) || defined(_MSC_VER)
+	explicit operator basic_win32_io_handle<char_type>() const
+	{
+		return static_cast<basic_win32_io_handle<char_type>>(_get_osfhandle(_fileno(fp)));
+	}
+#endif
 };
 
-inline auto fileno(c_style_io_handle_unlocked& handle)
+using c_style_io_handle_unlocked = basic_c_style_io_handle_unlocked<char>;
+
+template<typename... Args>
+requires requires(std::FILE* fp,Args&& ...args)
 {
+	std::fprintf(fp,std::forward<Args>(args)...);
+}
+inline auto fprintf(c_style_io_handle_unlocked& h,Args&& ...args)
+{
+	auto v(
 #if defined(__WINNT__) || defined(_MSC_VER)
-	return _fileno(handle.native_handle());
+_fprintf_nolock
+#elif defined(_POSIX_SOURCE)
+	fprintf_unlocked
 #else
-	return ::fileno_unlocked(handle.native_handle());
+	fprintf
 #endif
+(h.native_handle(),std::forward<Args>(args)...));
+// forgetting checking printf/fprintf return value is a common mistake and a huge source of security vulnerability
+	if(v<0)
+		throw std::system_error(errno,std::system_category());
+	return v;
 }
 
+
+template<typename... Args>
+requires requires(std::FILE* fp,Args&& ...args)
+{
+	std::fscanf(fp,std::forward<Args>(args)...);
+}
+inline auto fscanf(c_style_io_handle_unlocked& h,Args&& ...args)
+{
+	auto const v(
 #if defined(__WINNT__) || defined(_MSC_VER)
+_fscanf_nolock
+#elif defined(_POSIX_SOURCE)
+	fscanf_unlocked
+#else
+	fscanf
+#endif
+(h.native_handle(),std::forward<Args>(args)...));
+// forgetting checking scanf/fscanf return value is a common mistake and a huge source of security vulnerability
+	if(v<0)
+		throw std::system_error(errno,std::system_category());
+	return v;
+}
+
 /*
 #ifdef _MSC_VER
 
@@ -56,6 +106,8 @@ inline Iter receive(c_style_io_handle_unlocked& cfhd,Iter begin,Iter end)
 //mingw
 #ifdef _MSC_VER
 	_fread_nolock
+#elif _POSIX_SOURCE
+	fread_unlocked
 #else
 	fread
 #endif
@@ -72,6 +124,8 @@ inline void send(c_style_io_handle_unlocked& cfhd,Iter begin,Iter end)
 	if(
 #ifdef _MSC_VER
 	_fwrite_nolock
+#elif defined(_POSIX_SOURCE)
+	fwrite_unlocked
 #else
 	fwrite
 #endif
@@ -82,40 +136,81 @@ inline void send(c_style_io_handle_unlocked& cfhd,Iter begin,Iter end)
 template<bool err=false>
 inline auto get(c_style_io_handle_unlocked& cfhd)
 {
-	auto ch(_fgetc_nolock(cfhd.native_handle()));
+	auto ch(
+#ifdef _MSC_VER
+	_fgetc_nolock
+#elif defined(_POSIX_SOURCE)
+	fgetc_unlocked
+#else
+	fgetc
+#endif
+	(cfhd.native_handle()));
 	if(ch==EOF)
 	{
-		if(std::feof(cfhd.native_handle()))
+		if(
+#ifdef _POSIX_SOURCE
+	feof_unlocked
+#else
+	feof
+#endif
+(cfhd.native_handle()))
 		{
 			if constexpr(err)
-				return std::pair<char,bool>{0,true};
+				return std::pair<typename c_style_io_handle_unlocked::char_type,bool>{0,true};
 			else
 				throw eof();
 		}
 		throw std::system_error(errno,std::system_category());
 	}
 	if constexpr(err)
-		return std::pair<char,bool>{std::char_traits<char>::to_char_type(ch),false};
+		return std::pair<typename c_style_io_handle_unlocked::char_type,bool>
+		{
+			std::char_traits<typename c_style_io_handle_unlocked::char_type>::to_char_type(ch),false
+		};
 	else
-		return std::char_traits<char>::to_char_type(ch);
+		return std::char_traits<typename c_style_io_handle_unlocked::char_type>::to_char_type(ch);
 }
 
-inline void put(c_style_io_handle_unlocked& cfhd,char ch)
+inline void put(c_style_io_handle_unlocked& cfhd,typename c_style_io_handle_unlocked::char_type ch)
 {
-	if(_fputc_nolock(ch,cfhd.native_handle())==EOF)
+	if(
+#if defined(_MSC_VER)
+		_fputc_nolock
+#elif defined(_POSIX_SOURCE)
+		fputc_unlocked
+#else
+		fputc
+#endif
+	(static_cast<char>(ch),cfhd.native_handle())==EOF)
 		throw std::system_error(errno,std::system_category());
 }
 
 inline void flush(c_style_io_handle_unlocked& cfhd)
 {
-	if(_fflush_nolock(cfhd.native_handle()))
+	if(
+#if defined(__WINNT__) || defined(_MSC_VER)
+		_fflush_nolock
+#elif defined(_POSIX_SOURCE)
+		fflush_unlocked
+#else
+		fflush
+#endif
+	(cfhd.native_handle()))
 		throw std::system_error(errno,std::system_category());
 }
 
 template<typename T,std::integral U>
 inline void seek(c_style_io_handle_unlocked& cfhd,seek_type_t<T>,U i,seekdir s=seekdir::beg)
 {
-	if(_fseek_nolock(cfhd.native_handle(),seek_precondition<long,T,char>(i),static_cast<int>(s)))
+	if(
+#if defined(__WINNT__) || defined(_MSC_VER)
+		_fseek_nolock
+#elif defined(_POSIX_SOURCE)
+		fseek_unlocked
+#else
+		fseek
+#endif
+	(cfhd.native_handle(),seek_precondition<long,T,char>(i),static_cast<int>(s)))
 		throw std::system_error(errno,std::system_category()); 
 }
 
@@ -125,7 +220,10 @@ inline void seek(c_style_io_handle_unlocked& cfhd,U i,seekdir s=seekdir::beg)
 	seek(cfhd,seek_type<char>,i,s);
 }
 
+
+//Exploiting the library internal implementation for performance since the stdio.h performance is SO TERRIBLE
 #ifdef __MINGW32__
+//cannot convert to char8_t due to strict aliasing rule violation
 inline char* oreserve(c_style_io_handle_unlocked& cfhd,std::size_t n)
 {
 	auto& h(*cfhd.native_handle());
@@ -143,98 +241,7 @@ inline void orelease(c_style_io_handle_unlocked& cfhd,std::size_t n)
 	h._cnt+=n;
 	h._ptr-=n;
 }
-#endif
-
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	_fprintf_unlock(fp,std::forward<Args>(args)...);
-}
-inline auto fprintf(c_style_io_handle_unlocked& h,Args&& ...args)
-{
-	auto v(_fprintf_unlock(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
-}
-
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	_fscanf_nolock(fp,std::forward<Args>(args)...);
-}
-inline auto fscanf(c_style_io_handle_unlocked& h,Args&& ...args)
-{
-	auto v(_fscanf_nolock(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
-}
-#else
-template<std::contiguous_iterator Iter>
-inline Iter receive(c_style_io_handle_unlocked& cfhd,Iter begin,Iter end)
-{
-	std::size_t const count(end-begin);
-	std::size_t const r(fread_unlock(std::to_address(begin),sizeof(*begin),count,cfhd.native_handle()));
-	if(r==count||std::feof(cfhd.native_handle()))
-		return begin+r;
-	throw std::system_error(errno,std::generic_category());
-}
-
-template<std::contiguous_iterator Iter>
-inline void send(c_style_io_handle_unlocked& cfhd,Iter begin,Iter end)
-{
-	std::size_t const count(end-begin);
-	if(fwrite_unlocked(std::to_address(begin),sizeof(*begin),count,cfhd.native_handle())<count)
-		throw std::system_error(errno,std::generic_category());
-}
-
-template<bool err=false>
-inline auto get(c_style_io_handle_unlocked& cfhd)
-{
-	auto ch(fgetc_unlocked(cfhd.native_handle()));
-	if(ch==EOF)
-	{
-		if(feof_unlocked(cfhd.native_handle()))
-		{
-			if constexpr(err)
-				return std::pair<char,bool>{0,true};
-			else
-				throw fast_io::eof();
-		}
-		throw std::system_error(errno,std::system_category());
-	}
-	if constexpr(err)
-		return std::pair<char,bool>{std::char_traits<char>::to_char_type(ch),false};
-	else
-		return std::char_traits<char>::to_char_type(ch);
-}
-
-inline void put(c_style_io_handle_unlocked& cfhd,char ch)
-{
-	if(fputc_unlocked(ch,cfhd.native_handle())==EOF)
-		throw std::system_error(errno,std::system_category());
-}
-
-inline void flush(c_style_io_handle_unlocked& cfhd)
-{
-	if(fflush_unlocked(cfhd.native_handle()))
-		throw std::system_error(errno,std::system_category());
-}
-
-template<typename T,std::integral U>
-inline void seek(c_style_io_handle_unlocked& cfhd,seek_type_t<T>,U i,seekdir s=seekdir::beg)
-{
-	if(fseek(cfhd.native_handle(),seek_precondition<long,T,char>(i),static_cast<int>(s)))
-		throw std::system_error(errno,std::system_category()); 
-}
-
-template<std::integral U>
-inline void seek(c_style_io_handle_unlocked& cfhd,U i,seekdir s=seekdir::beg)
-{
-	seek(cfhd,seek_type<char>,i,s);
-}
-#ifdef __GNU_LIBRARY__
+#elif defined(__GNU_LIBRARY__)
 inline char* oreserve(c_style_io_handle_unlocked& cfhd,std::size_t n)
 {
 	auto& h(*cfhd.native_handle());
@@ -248,63 +255,41 @@ inline void orelease(c_style_io_handle_unlocked& cfhd,std::size_t n)
 	cfhd.native_handle()->_IO_write_ptr-=n;
 }
 #endif
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	fprintf_unlocked(fp,std::forward<Args>(args)...);
-}
-inline auto fprintf(c_style_io_handle_unlocked& h,Args&& ...args)
-{
-	auto v(fprintf_unlocked(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
-}
-
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	fscanf_unlocked(fp,std::forward<Args>(args)...);
-}
-inline auto fscanf(c_style_io_handle_unlocked& h,Args&& ...args)
-{
-	auto v(fscanf_unlocked(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
-}
-
-#endif
 
 class c_style_io_lock_guard;
 
-class c_style_io_handle
+template<std::integral ch_type>
+class basic_c_style_io_handle
 {
 	std::FILE *fp;
-protected:
-	auto& protected_native_handle()
-	{
-		return fp;
-	}
 public:
 	using lock_guard_type = c_style_io_lock_guard;
-	c_style_io_handle(std::FILE* fpp):fp(fpp){}
-	using char_type = char;
+	basic_c_style_io_handle(std::FILE* fpp):fp(fpp){}
+	using char_type = ch_type;
 	using native_handle_type = std::FILE*;
-	native_handle_type native_handle() const
+	native_handle_type& native_handle()
 	{
 		return fp;
 	}
+	explicit operator basic_posix_io_handle<char_type>() const
+	{
+		return static_cast<basic_posix_io_handle<char_type>>(
+#if defined(__WINNT__) || defined(_MSC_VER)
+	_fileno(fp)
+#else
+	::fileno(fp)
+#endif
+);
+	}
+#if defined(__WINNT__) || defined(_MSC_VER)
+	explicit operator basic_win32_io_handle<char_type>() const
+	{
+		return static_cast<basic_win32_io_handle<char_type>>(_get_osfhandle(_fileno(fp)));
+	}
+#endif
 };
 
-inline auto fileno(c_style_io_handle& handle)
-{
-#if defined(__WINNT__) || defined(_MSC_VER)
-	return _fileno(handle.native_handle());
-#else
-	return ::fileno(handle.native_handle());
-#endif
-}
+using c_style_io_handle=basic_c_style_io_handle<char>;
 
 inline auto mutex(c_style_io_handle& h)
 {
@@ -368,19 +353,22 @@ inline auto get(c_style_io_handle& cfhd)
 		if(feof(cfhd.native_handle()))
 		{
 			if constexpr(err)
-				return std::pair<char,bool>{0,true};
+				return std::pair<typename c_style_io_handle::char_type,bool>{0,true};
 			else
 				throw eof();
 		}
 		throw std::system_error(errno,std::system_category());
 	}
 	if constexpr(err)
-		return std::pair<char,bool>{std::char_traits<char>::to_char_type(ch),false};
+		return std::pair<typename c_style_io_handle::char_type,bool>
+		{
+			std::char_traits<typename c_style_io_handle::char_type>::to_char_type(ch),false
+		};
 	else
-		return std::char_traits<char>::to_char_type(ch);
+		return std::char_traits<typename c_style_io_handle::char_type>::to_char_type(ch);
 }
 
-inline void put(c_style_io_handle& cfhd,char ch)
+inline void put(c_style_io_handle& cfhd,typename c_style_io_handle::char_type ch)
 {
 	if(std::fputc(ch,cfhd.native_handle())==EOF)
 		throw std::system_error(errno,std::system_category());
@@ -395,54 +383,26 @@ inline void flush(c_style_io_handle& cfhd)
 template<typename T,std::integral U>
 inline void seek(c_style_io_handle& cfhd,seek_type_t<T>,U i,seekdir s=seekdir::beg)
 {
-	if(std::fseek(cfhd.native_handle(),seek_precondition<long,T,char>(i),static_cast<int>(s)))
+	if(std::fseek(cfhd.native_handle(),seek_precondition<long,T,typename c_style_io_handle::char_type>(i),static_cast<int>(s)))
 		throw std::system_error(errno,std::system_category()); 
-}
-
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	std::fprintf(fp,std::forward<Args>(args)...);
-}
-inline auto fprintf(c_style_io_handle& h,Args&& ...args)
-{
-	auto v(std::fprintf(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
-}
-
-
-template<typename... Args>
-requires requires(std::FILE* fp,Args&& ...args)
-{
-	std::fscanf(fp,std::forward<Args>(args)...);
-}
-inline auto fscanf(c_style_io_handle& h,Args&& ...args)
-{
-	auto v(std::fscanf(h.native_handle(),std::forward<Args>(args)...));
-	if(v==EOF)
-		throw std::system_error(errno,std::system_category());
-	return v;
 }
 
 template<std::integral U>
 inline void seek(c_style_io_handle& cfhd,U i,seekdir s=seekdir::beg)
 {
-	seek(cfhd,seek_type<char>,i,s);
+	seek(cfhd,seek_type<typename c_style_io_handle::char_type>,i,s);
 }
 
 template<typename T>
 class basic_c_style_file:public T
 {
-	using T::protected_native_handle;
-	using T::native_handle;
 	void close_impl() noexcept
 	{
 		if(native_handle())
 			std::fclose(native_handle());
 	}
 public:
+	using T::native_handle;
 	using T::char_type;
 	using T::native_handle_type;
 	template<typename ...Args>
@@ -451,7 +411,11 @@ public:
 		if(native_handle()==nullptr)
 			throw std::system_error(errno,std::generic_category());
 	}
-	basic_c_style_file(std::string_view name,std::string_view mode):basic_c_style_file(native_interface,name.data(),mode.data()){}
+	basic_c_style_file(std::string_view name,std::string_view mode):T(std::fopen(name.data(),mode.data()))
+	{
+		if(native_handle()==nullptr)
+			throw std::system_error(errno,std::generic_category());
+	}
 	basic_c_style_file(std::string_view file,open::mode const& m):basic_c_style_file(file,c_style(m))
 	{
 		if(with_ate(m))
@@ -467,15 +431,15 @@ public:
 	basic_c_style_file& operator=(basic_c_style_file const&)=delete;
 	basic_c_style_file(basic_c_style_file&& b) noexcept : T(b.native_handle())
 	{
-		b.protected_native_handle() = nullptr;
+		b.native_handle() = nullptr;
 	}
 	basic_c_style_file& operator=(basic_c_style_file&& b) noexcept
 	{
 		if(std::addressof(b)!=this)
 		{
 			close_impl();
-			protected_native_handle()=b.native_handle();
-			b.protected_native_handle() = nullptr;
+			native_handle()=b.native_handle();
+			b.native_handle() = nullptr;
 		}
 		return *this;
 	}
@@ -484,6 +448,36 @@ public:
 		close_impl();
 	}
 };
+
+template<typename... Args>
+requires requires(std::FILE* fp,Args&& ...args)
+{
+	std::fprintf(fp,std::forward<Args>(args)...);
+}
+inline auto fprintf(c_style_io_handle& h,Args&& ...args)
+{
+	auto v(std::fprintf(h.native_handle(),std::forward<Args>(args)...));
+// forgetting checking printf/fprintf return value is a common mistake and a huge source of security vulnerability
+	if(v<0)
+		throw std::system_error(errno,std::system_category());
+	return v;
+}
+
+
+template<typename... Args>
+requires requires(std::FILE* fp,Args&& ...args)
+{
+	std::fscanf(fp,std::forward<Args>(args)...);
+}
+inline auto fscanf(c_style_io_handle& h,Args&& ...args)
+{
+	auto v(std::fscanf(h.native_handle(),std::forward<Args>(args)...));
+// forgetting checking scanf/fscanf return value is a common mistake and a huge source of security vulnerability
+	if(v<0)
+		throw std::system_error(errno,std::system_category());
+	return v;
+}
+
 
 using c_style_file = basic_c_style_file<c_style_io_handle>;
 using c_style_file_unlocked = basic_c_style_file<c_style_io_handle_unlocked>;

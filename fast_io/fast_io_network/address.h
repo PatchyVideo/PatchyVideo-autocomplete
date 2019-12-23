@@ -81,9 +81,9 @@ inline constexpr void scan_define(input& in,ipv6& v6)
 	std::basic_string<typename input::char_type> str;
 	scan(in,str);
 	if(str.size()<2)
-		throw std::runtime_error("ipv6 address too short");
+		throw std::runtime_error(reinterpret_cast<char const*>(u8"ipv6 address too short"));
 	else if(39<str.size())
-		throw std::runtime_error("ipv6 address too long");
+		throw std::runtime_error(reinterpret_cast<char const*>(u8"ipv6 address too long"));
 	std::size_t colons(0),position(npos);
 	if(str.front()!=0x3a)
 		++colons;
@@ -100,12 +100,12 @@ inline constexpr void scan_define(input& in,ipv6& v6)
 			}
 		}
 	if(7<colons)
-		throw std::runtime_error("too many : for ipv6 address");
+		throw std::runtime_error(reinterpret_cast<char const*>(u8"too many : for ipv6 address"));
 	if(position!=npos)
 	{
-		std::string tempstr(1,0x20);
+		std::u8string tempstr(1,0x20);
 		for(std::size_t i(9-colons);i--;)
-			tempstr.append("0 ",2);
+			tempstr.append(u8"0 ",2);
 		str.insert(position,tempstr);
 	}
 	fast_io::basic_istring_view<std::basic_string_view<typename input::char_type>> istrbuf(str);
@@ -170,7 +170,7 @@ inline constexpr void print_define(output& os,manip::base_t<base,uppercase,T> e)
 			print(os,fast_io::base<base,uppercase>(storage.front()));
 		for(std::size_t i(1);i<maximum_zero_start;++i)
 			print(os,fast_io::char_view(0x3a),fast_io::base<base,uppercase>(storage[i]));
-		print(os,"::");
+		print(os,u8"::");
 		std::size_t const maximum_zero_end(maximum_zero_start+maximum_zero_size);
 		if(maximum_zero_end==storage.size())
 			return;

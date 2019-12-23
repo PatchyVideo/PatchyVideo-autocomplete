@@ -42,22 +42,34 @@ inline constexpr void orelease(basic_ostring<T>& ob,std::size_t size)
 }
 
 template<typename T,std::contiguous_iterator Iter>
-inline constexpr void send(basic_ostring<T>& ostr,Iter cbegin,Iter cend)
+requires (sizeof(typename T::value_type)==1||
+	std::same_as<typename T::value_type,typename std::iterator_traits<Iter>::value_type>)
+inline void send(basic_ostring<T>& ostr,Iter cbegin,Iter cend)
 {
 	using char_type = typename T::value_type;
-	ostr.str().append(static_cast<char_type const*>(static_cast<void const*>(std::to_address(cbegin))),static_cast<char_type const*>(static_cast<void const*>(std::to_address(cend))));
+//http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1072r2.html
+//strict aliasing rule
+	if constexpr(std::same_as<char_type,std::remove_cvref_t<decltype(*cbegin)>>)
+		ostr.str().append(std::to_address(cbegin),std::to_address(cend));
+	else
+	{
+		std::size_t const size(ostr.str().size());
+		std::size_t const bytes(sizeof(*cbegin)*(cend-cbegin));
+		ostr.str().append(bytes,0);
+		memcpy(ostr.str().data()+size,std::to_address(cbegin),bytes);
+	}
 }
 template<typename T>
-inline constexpr void put(basic_ostring<T>& ostr,typename T::value_type ch)
+inline void put(basic_ostring<T>& ostr,typename T::value_type ch)
 {
 	ostr.str().push_back(ch);
 }
 
 template<typename T>
-inline constexpr void flush(basic_ostring<T>&){}
+inline void flush(basic_ostring<T>&){}
 
 template<typename T>
-inline constexpr void fill_nc(basic_ostring<T>& os,std::size_t count,typename T::value_type const& ch)
+inline void fill_nc(basic_ostring<T>& os,std::size_t count,typename T::value_type const& ch)
 {
 	os.str().append(count,ch);
 }
