@@ -1,7 +1,8 @@
 
 #include "fast_io/fast_io.h"
-#include "fast_io/fast_io_network.h"
+#include "fast_io/fast_io_async.h"
 #include "fast_io/fast_io_device.h"
+#include "fast_io/fast_io_network.h"
 
 #include "tree.h"
 
@@ -47,17 +48,20 @@ inline void read_split(input &in, std::basic_string<typename input::char_type> &
 {
 	IsSpace func;
 	str.clear();
-	for (decltype(try_get(in)) ch; !(ch = try_get(in)).second && !func(ch.first); str.push_back(ch.first));
+	for (decltype(fast_io::get<true>(in)) ch; !(ch = fast_io::get<true>(in)).second && !func(ch.first); str.push_back(ch.first));
 }
 
-inline uint8_t hex2int(char const &ch)
+inline constexpr std::uint8_t hex2int(char const &ch)
 {
-	if (ch >= '0' && ch <= '9')
-		return ch - '0';
-	if (ch >= 'a' && ch <= 'f')
-		return ch - 'a' + 10;
-	if (ch >= 'A' && ch <= 'F')
-		return ch - 'A' + 10;
+	std::uint8_t ch_0(static_cast<std::uint8_t>(ch) - static_cast<std::uint8_t>('0'));
+	std::uint8_t ch_a(static_cast<std::uint8_t>(ch) - static_cast<std::uint8_t>('a'));
+	std::uint8_t ch_A(static_cast<std::uint8_t>(ch) - static_cast<std::uint8_t>('A'));
+	if (ch_0 < 10)
+		return ch_0;
+	if (ch_a < 16)
+		return ch_a + 10;
+	if (ch_A < 16)
+		return ch_A + 10;
 	throw std::runtime_error("not a hex");
 }
 
@@ -65,16 +69,16 @@ inline auto decode_url(std::string const &url)
 {
 	std::string out;
 	fast_io::istring_view url_isv(url);
-	for (decltype(fast_io::try_get(url_isv)) ch;;)
+	for (decltype(fast_io::get<true>(url_isv)) ch;;)
 	{
-		ch = try_get(url_isv);
+		ch = fast_io::get<true>(url_isv);
 		if (ch.second)
 			break;
 		if (ch.first == '%')
 		{
 			uint8_t ch2;
-			auto hex1(try_get(url_isv));
-			auto hex2(try_get(url_isv));
+			auto hex1(fast_io::get<true>(url_isv));
+			auto hex2(fast_io::get<true>(url_isv));
 			if (hex1.second || hex2.second)
 				throw std::runtime_error("decode failed");
 			ch2 = (hex2int(hex1.first) << 4) | hex2int(hex2.first);
@@ -235,7 +239,7 @@ inline void handle_request_deltag(output &out, input &content)
 	std::uint32_t tagid;
 	scan(content, tagid);
 	if (tagid >= g_tags.size())
-			return;
+		return;
 
 	DeleteTag(tagid);
 }
@@ -298,59 +302,87 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	print(out, response_body_stream.str());
 }
 
+void handle_connection(fast_io::acceptor_buf& client_stream)
+{
+	try
+	{
+		auto request_header(scan_http_header(client_stream));
+		RequestMethod method;
+		std::string path_version;
+		if (request_header.contains("POST"))
+		{
+			method = RequestMethod::POST;
+			path_version = request_header["POST"];
+		}
+		else if (request_header.contains("GET"))
+		{
+			method = RequestMethod::GET;
+			path_version = request_header["GET"];
+		}
+		else
+		{
+			print(client_stream, response405);
+			return;
+		}
+
+		std::string raw_path;
+		fast_io::istring_view isv(path_version);
+		scan(isv, raw_path);
+
+		auto const &[path, params] = parse_path(raw_path);
+
+		handle_request(client_stream, client_stream, method, path, params);
+	}
+	catch (http_error const &ex)
+	{
+		print(client_stream, response404);
+	}
+	catch (std::exception const &e)
+	{
+		println(fast_io::err, e);
+		print(client_stream, response500);
+	}
+}
+
 int main()
 try
 {
 	InitRootTrieNodes();
-	fast_io::server hd(5002, fast_io::sock::type::stream);
-	for (;;)
-		try
+	/*fast_io::server hd(5002, fast_io::sock::type::stream);
+	for (;;) try
 	{
 		fast_io::acceptor_buf client_stream(hd);
-		try
-		{
-			auto request_header(scan_http_header(client_stream));
-			RequestMethod method;
-			std::string path_version;
-			if (request_header.contains("POST"))
-			{
-				method = RequestMethod::POST;
-				path_version = request_header["POST"];
-			}
-			else if (request_header.contains("GET"))
-			{
-				method = RequestMethod::GET;
-				path_version = request_header["GET"];
-			}
-			else
-			{
-				print(client_stream, response405);
-				continue;
-			}
-
-			std::string raw_path;
-			fast_io::istring_view isv(path_version);
-			scan(isv, raw_path);
-
-			auto const &[path, params] = parse_path(raw_path);
-
-			handle_request(client_stream, client_stream, method, path, params);
-		}
-		catch (http_error const &ex)
-		{
-			print(client_stream, response404);
-		}
-		catch (std::exception const &e)
-		{
-			println(fast_io::err, e);
-			print(client_stream, response500);
-		}
+		handle_connection(client_stream);
 	}
 	catch (std::exception const &e)
 	{
 		println(fast_io::err, e);
 	}
-	return 0;
+	return 0;*/
+
+	fast_io::async_server server(5002, fast_io::sock::type::stream);
+	fast_io::epoll::handle_pool pool(512);
+	add_control(pool, server, fast_io::epoll::event::in);
+	std::array<fast_io::epoll::events, 512> events_buffer;
+	std::vector<fast_io::acceptor_buf> clients;
+	for (;;)
+		for (auto const &ele : wait(pool, events_buffer))
+			switch (get(ele))
+			{
+			case fast_io::epoll::event::in:
+				add_control(pool, clients.emplace_back(server), fast_io::epoll::event::out | fast_io::epoll::event::hup);
+				break;
+			case fast_io::epoll::event::out:
+			case fast_io::epoll::event::hup:
+				for (auto it(clients.begin()); it != clients.end(); ++it)
+					if (*it == ele)
+					{
+						handle_connection(*it);
+						iter_swap(it, clients.end() - 1);
+						clients.pop_back();
+						break;
+					}
+			};
 }
 catch (std::exception const &e)
 {
