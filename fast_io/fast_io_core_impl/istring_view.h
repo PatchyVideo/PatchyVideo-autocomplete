@@ -107,5 +107,6 @@ inline constexpr auto get(basic_istring_view<T>& istrvw)
 }
 
 using u8istring_view = basic_istring_view<std::u8string_view>;
+using istring_view = basic_istring_view<std::string_view>;
 
 }

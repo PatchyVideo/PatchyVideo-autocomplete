@@ -104,7 +104,7 @@ struct TrieNode
 
 using TrieNodeMemoryPool = MemoryPool<TrieNode>;
 
-void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
+/*void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
 {
 	return pool.allocate(sz);
 }
@@ -112,7 +112,7 @@ void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
 void operator delete(void *ptr, TrieNodeMemoryPool &pool)
 {
 	pool.deallocate(ptr);
-}
+}*/
 
 static TrieNodeMemoryPool g_trienodePool;
 
@@ -123,7 +123,7 @@ void InitRootTrieNodes()
 	std::uint32_t i = 0;
 	for (auto &ele : g_querywords)
 	{
-		ele = new(g_trienodePool) TrieNode;
+		ele = new TrieNode;
 		ele->ch = (i++) << 24;
 	}
 }
@@ -229,7 +229,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		}
 		if (!child)
 		{
-			TrieNode *nnode(new(g_trienodePool) TrieNode);
+			TrieNode *nnode(new TrieNode);
 			nnode->ch = key;
 			nnode->mask = 0xFFFFFFFF;
 			nnode->parent = cur;
@@ -257,7 +257,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		{
 			// node for partial query word not exist
 			// add one
-			TrieNode *nnode(new(g_trienodePool) TrieNode);
+			TrieNode *nnode(new TrieNode);
 			nnode->ch = key;
 			nnode->mask = mask;
 			nnode->parent = cur;
@@ -275,7 +275,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 	{
 		// keyword leaf not exist
 		// add keyword leaf
-		TrieNode * nnode(new(g_trienodePool) TrieNode);
+		TrieNode * nnode(new TrieNode);
 		nnode->ch = 0;
 		nnode->mask = 0;
 		nnode->parent = cur;
@@ -316,7 +316,7 @@ void DeleteQueryWord(TrieNode *leaf)
 	BackpropFreq(cur);
 }
 
-std::vector<std::string> _get_all_suffix(std::string const &keyword);
+std::vector<std::string> get_all_suffix(std::string const &keyword);
 
 void AddKeyword(std::uint32_t tagid, std::string const &keyword, std::uint32_t lang = 0)
 {
@@ -324,11 +324,11 @@ void AddKeyword(std::uint32_t tagid, std::string const &keyword, std::uint32_t l
 	{
 		auto const &keyword_obj(g_keywords[keyword]);
 		auto &tag_obj(*g_tags[tagid]);
-		if (lang != 0) [[likely]]
+		if (lang != 0)
 			tag_obj.lang_keywords[lang] = keyword_obj.get();
 		return;
 	}
-	auto const &&suffix(_get_all_suffix(keyword));
+	auto const suffix(get_all_suffix(keyword));
 	std::unique_ptr<Keyword> keyword_obj(new Keyword{tagid, keyword});
 	for (auto const &query : suffix)
 	{
@@ -338,7 +338,7 @@ void AddKeyword(std::uint32_t tagid, std::string const &keyword, std::uint32_t l
 	auto &tag_obj(*g_tags[tagid]);
 	if (lang == 0)
 		tag_obj.alias_keywords.emplace_back(keyword_obj.get());
-	else [[likely]]
+	else
 		tag_obj.lang_keywords[lang] = keyword_obj.get();
 	g_keywords[keyword] = std::move(keyword_obj);
 }
@@ -593,7 +593,7 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t
 }
 
 
-std::vector<std::string> _get_all_suffix(std::string const &keyword)
+std::vector<std::string> get_all_suffix(std::string const &keyword)
 {
 	std::vector<std::string> ret{};
 	ret.reserve(keyword.size());

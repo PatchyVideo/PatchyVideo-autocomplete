@@ -30,12 +30,12 @@ inline constexpr std::uint64_t hash(std::string_view str)
 	return ret;
 }
 
-auto response_header{"HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: "};
-auto response_header_json{"HTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8\nContent-Length: "};
+auto response_header{u8"HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: "};
+auto response_header_json{u8"HTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8\nContent-Length: "};
 
-auto response404{"HTTP/1.1 404 Not Found\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
-auto response405{"HTTP/1.1 405 Method Not Allowed\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
-auto response500{"HTTP/1.1 500 Internal Server Error\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
+auto response404{u8"HTTP/1.1 404 Not Found\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
+auto response405{u8"HTTP/1.1 405 Method Not Allowed\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
+auto response500{u8"HTTP/1.1 500 Internal Server Error\nContent-Type: text/html; charset=utf-8\nContent-Length: 0\n\n"};
 
 enum class RequestMethod
 {
@@ -150,15 +150,15 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 
 	//std::vector<Keywords *>
 	auto query_result(QueryWord(prefix, max_words, user_lang_index));
-	print(out, "[");
+	print(out, u8"[");
 	for (std::size_t i(0); i != query_result.size(); ++i)
 	{
 		auto const& key(*query_result[i]);
-		print(out, "{\"tag\":\"", key.keyword, "\",\"cat\":", g_tags[key.tagid]->category, ",\"cnt\":", g_tags[key.tagid]->count, "}");
+		print(out, u8"{\"tag\":\"", key.keyword, u8"\",\"cat\":", g_tags[key.tagid]->category, u8",\"cnt\":", g_tags[key.tagid]->count, u8"}");
 		if (i != query_result.size() - 1)
-			print(out, ",");
+			print(out, u8",");
 	}
-	print(out, "]");
+	print(out, u8"]");
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
@@ -173,7 +173,7 @@ inline void handle_request_addtag(output &out, input &content)
 	for (std::size_t i(0); i != n; ++i)
 	{
 		scan(content, tagid, count, cat);
-		AddTag(tagid, count, cat);
+		//AddTag(tagid, count, cat);
 	}
 }
 
@@ -298,7 +298,7 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 
 	print(out, response_header_json);
 	print(out, response_body_stream.str().size());
-	print(out, "\n\n");
+	print(out, u8"\n\n");
 	print(out, response_body_stream.str());
 }
 
@@ -329,7 +329,7 @@ void handle_connection(fast_io::acceptor_buf& client_stream)
 		fast_io::istring_view isv(path_version);
 		scan(isv, raw_path);
 
-		auto const &[path, params] = parse_path(raw_path);
+		auto const [path, params] = parse_path(raw_path);
 
 		handle_request(client_stream, client_stream, method, path, params);
 	}
@@ -362,7 +362,7 @@ try
 
 	fast_io::async_server server(5002, fast_io::sock::type::stream);
 	fast_io::epoll::handle_pool pool(512);
-	add_control(pool, server, fast_io::epoll::event::in);
+	//add_control(pool, server, fast_io::epoll::event::in);
 	std::array<fast_io::epoll::events, 512> events_buffer;
 	std::vector<fast_io::acceptor_buf> clients;
 	for (;;)
@@ -370,7 +370,7 @@ try
 			switch (get(ele))
 			{
 			case fast_io::epoll::event::in:
-				add_control(pool, clients.emplace_back(server), fast_io::epoll::event::out | fast_io::epoll::event::hup);
+				//add_control(pool, clients.emplace_back(server), fast_io::epoll::event::out | fast_io::epoll::event::hup);
 				break;
 			case fast_io::epoll::event::out:
 			case fast_io::epoll::event::hup:

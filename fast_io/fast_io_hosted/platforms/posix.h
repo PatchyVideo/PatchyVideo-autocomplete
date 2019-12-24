@@ -2,6 +2,8 @@
 
 #if defined(__WINNT__) || defined(_MSC_VER)
 #include<io.h>
+#else
+#include<unistd.h>
 #endif
 #include<fcntl.h>
 #ifdef __linux__
