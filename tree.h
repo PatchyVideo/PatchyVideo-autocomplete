@@ -104,7 +104,7 @@ struct TrieNode
 
 using TrieNodeMemoryPool = MemoryPool<TrieNode>;
 
-/*void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
+void *operator new(std::size_t sz, TrieNodeMemoryPool &pool)
 {
 	return pool.allocate(sz);
 }
@@ -112,7 +112,7 @@ using TrieNodeMemoryPool = MemoryPool<TrieNode>;
 void operator delete(void *ptr, TrieNodeMemoryPool &pool)
 {
 	pool.deallocate(ptr);
-}*/
+}
 
 static TrieNodeMemoryPool g_trienodePool;
 
@@ -123,7 +123,7 @@ void InitRootTrieNodes()
 	std::uint32_t i = 0;
 	for (auto &ele : g_querywords)
 	{
-		ele = new TrieNode;
+		ele = new(g_trienodePool) TrieNode;
 		ele->ch = (i++) << 24;
 	}
 }
@@ -229,7 +229,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		}
 		if (!child)
 		{
-			TrieNode *nnode(new TrieNode);
+			TrieNode *nnode(new(g_trienodePool) TrieNode);
 			nnode->ch = key;
 			nnode->mask = 0xFFFFFFFF;
 			nnode->parent = cur;
@@ -257,7 +257,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 		{
 			// node for partial query word not exist
 			// add one
-			TrieNode *nnode(new TrieNode);
+			TrieNode *nnode(new(g_trienodePool) TrieNode);
 			nnode->ch = key;
 			nnode->mask = mask;
 			nnode->parent = cur;
@@ -275,7 +275,7 @@ auto AddQueryWord(Keyword *keyword, std::string const &word)
 	{
 		// keyword leaf not exist
 		// add keyword leaf
-		TrieNode * nnode(new TrieNode);
+		TrieNode * nnode(new(g_trienodePool) TrieNode);
 		nnode->ch = 0;
 		nnode->mask = 0;
 		nnode->parent = cur;
@@ -615,5 +615,5 @@ std::vector<std::string> get_all_suffix(std::string const &keyword)
 			it += ones;
 		}
 	}
-	return std::move(ret);
+	return ret;
 }

@@ -15,6 +15,7 @@ void ignore(T&&)
 *   POST /addword        n tagid word lang ...  return ""
 *   POST /setcount       n tagid count ...      return ""
 *   POST /setcountdiff   n tagid diff ...       return ""
+*   POST /setcat         n tagid cat ...        return ""
 *   POST /deltag         tagid                  return ""
 *   POST /delword        word                   return ""
 *   GET  /?q=<prefix>&n=<max_words>&l=<lang>    return JSON[{word,category,count},...]
@@ -173,7 +174,7 @@ inline void handle_request_addtag(output &out, input &content)
 	for (std::size_t i(0); i != n; ++i)
 	{
 		scan(content, tagid, count, cat);
-		//AddTag(tagid, count, cat);
+		AddTag(tagid, count, cat);
 	}
 }
 
@@ -233,6 +234,24 @@ inline void handle_request_setcountdiff(output &out, input &content)
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
+inline void handle_request_setcat(output &out, input &content)
+{
+	ignore(out);
+	std::uint32_t tagid;
+	std::uint32_t cat;
+	std::size_t n(0);
+	scan(content, n);
+	for (std::size_t i(0); i != n; ++i)
+	{
+		scan(content, tagid, cat);
+		if (tagid >= g_tags.size())
+			return;
+
+		UpdateTagCategory(tagid, cat);
+	}
+}
+
+template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_deltag(output &out, input &content)
 {
 	ignore(out);
@@ -283,6 +302,9 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 			break;
 		case hash("/setcountdiff"):
 			handle_request_setcountdiff(response_body_stream, content);
+			break;
+		case hash("/setcat"):
+			handle_request_setcat(response_body_stream, content);
 			break;
 		case hash("/deltag"):
 			handle_request_deltag(response_body_stream, content);
