@@ -370,7 +370,7 @@ int main()
 try
 {
 	InitRootTrieNodes();
-	/*fast_io::server hd(5002, fast_io::sock::type::stream);
+	fast_io::server hd(5002, fast_io::sock::type::stream);
 	for (;;) try
 	{
 		fast_io::acceptor_buf client_stream(hd);
@@ -380,11 +380,11 @@ try
 	{
 		println(fast_io::err, e);
 	}
-	return 0;*/
+	return 0;
 
-	fast_io::async_server server(5002, fast_io::sock::type::stream);
+	/*fast_io::async_server server(5002, fast_io::sock::type::stream);
 	fast_io::epoll::handle_pool pool(512);
-	//add_control(pool, server, fast_io::epoll::event::in);
+	add_control(pool, server, fast_io::epoll::event::in);
 	std::array<fast_io::epoll::events, 512> events_buffer;
 	std::vector<fast_io::acceptor_buf> clients;
 	for (;;)
@@ -392,7 +392,7 @@ try
 			switch (get(ele))
 			{
 			case fast_io::epoll::event::in:
-				//add_control(pool, clients.emplace_back(server), fast_io::epoll::event::out | fast_io::epoll::event::hup);
+				add_control(pool, clients.emplace_back(server), fast_io::epoll::event::out | fast_io::epoll::event::hup);
 				break;
 			case fast_io::epoll::event::out:
 			case fast_io::epoll::event::hup:
@@ -404,7 +404,7 @@ try
 						clients.pop_back();
 						break;
 					}
-			};
+			};*/
 }
 catch (std::exception const &e)
 {
