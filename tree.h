@@ -650,6 +650,7 @@ auto QueryWordTagObject(std::string const &prefix, std::uint32_t max_words)
 			if (used_tags.count(node->keyword->tagid) > 0)
 				continue;
 			ret.emplace_back(g_tags[node->keyword->tagid].get());
+			used_tags.emplace(node->keyword->tagid);
 			if (ret.size() == max_words)
 				return ret;
 		}
