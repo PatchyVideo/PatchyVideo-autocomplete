@@ -11,14 +11,15 @@ void ignore(T&&)
 {}
 
 /*
-*   POST /addtag         n tagid count cat ...  return ""
-*   POST /addword        n tagid word lang ...  return ""
-*   POST /setcount       n tagid count ...      return ""
-*   POST /setcountdiff   n tagid diff ...       return ""
-*   POST /setcat         n tagid cat ...        return ""
-*   POST /deltag         tagid                  return ""
-*   POST /delword        word                   return ""
-*   GET  /?q=<prefix>&n=<max_words>&l=<lang>    return JSON[{word,category,count},...]
+*   POST /addtag         n tagid count cat ...    return ""
+*   POST /addword        n tagid word lang ...    return ""
+*   POST /setcount       n tagid count ...        return ""
+*   POST /setcountdiff   n tagid diff ...         return ""
+*   POST /setcat         n tagid cat ...          return ""
+*   POST /deltag         tagid                    return ""
+*   POST /delword        word                     return ""
+*   GET  /?q=<prefix>&n=<max_words>&l=<lang>      return JSON[{word,category,count},...]
+*   GET  /ql?q=<prefix>&n=<max_words>             return JSON[{category,count,langs:[{language,word},...],alias:[word,...]},...]
 */
 
 inline constexpr std::uint64_t hash(std::string_view str)
@@ -162,6 +163,55 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 	print(out, u8"]");
 }
 
+template<fast_io::character_output_stream output>
+inline void handle_request_ql(output &out, std::unordered_map<std::string, std::string> const &params)
+{
+	std::string prefix(params.at("q"));
+	std::string max_words_str("10");
+	if (params.contains("n"))
+		max_words_str = params.at("n");
+	if (prefix.size() < 1)
+		abort(400);
+	std::uint32_t max_words{10};
+	std::uint32_t user_lang_index{0};
+	fast_io::istring_view isv(max_words_str);
+	scan(isv, max_words);
+	if (max_words > 100 || max_words == 0)
+		max_words = 10;
+
+	//std::vector<Tag *>
+	auto query_result(QueryWordTagObject(prefix, max_words));
+	print(out, u8"[");
+	for (std::size_t i(0); i != query_result.size(); ++i)
+	{
+		auto const& tagobj(*query_result[i]);
+		print(out, u8"{");
+		//print(out, u8"{\"tag\":\"", key.keyword, u8"\",\"cat\":", g_tags[key.tagid]->category, u8",\"cnt\":", g_tags[key.tagid]->count, u8"}");
+		print(out, u8"\"cat\":", tagobj.category, u8",");
+		print(out, u8"\"cnt\":", tagobj.count, u8",");
+		print(out, u8"\"langs\":[");
+		std::size_t cnt(0);
+		for (auto const& [id, word] : tagobj.lang_keywords) {
+			print(out, u8"{\"l\":", id, u8",\"w\":\"", word->keyword, u8"\"}");
+			if (++cnt < tagobj.lang_keywords.size())
+				print(out, u8",");
+		}
+		print(out, u8"],");
+		cnt = 0;
+		print(out, u8"\"alias\":[");
+		for (auto const& word : tagobj.alias_keywords) {
+			print(out, u8"\"", word->keyword, u8"\"");
+			if (++cnt < tagobj.alias_keywords.size())
+				print(out, u8",");
+		}
+		print(out, u8"]");
+		print(out, u8"}");
+		if (i != query_result.size() - 1)
+			print(out, u8",");
+	}
+	print(out, u8"]");
+}
+
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request_addtag(output &out, input &content)
 {
@@ -284,9 +334,15 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 	switch (method)
 	{
 	case RequestMethod::GET:
-		if (path != "/")
-			abort(404);
-		handle_request_q(response_body_stream, params);
+		switch (path_hashed)
+		{
+		case hash("/"):
+			handle_request_q(response_body_stream, params);
+			break;
+		case hash("/ql"):
+			handle_request_ql(response_body_stream, params);
+			break;
+		}
 		break;
 	case RequestMethod::POST:
 		switch (path_hashed)

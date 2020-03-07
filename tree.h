@@ -592,6 +592,77 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t
 	return ret;
 }
 
+auto QueryWordTagObject(std::string const &prefix, std::uint32_t max_words)
+{
+	std::vector<Tag *> ret{};
+	std::set<std::uint32_t> used_tags;
+	ret.reserve(max_words);
+
+	auto prefix_iter(prefix.cbegin());
+	uint8_t root_key(static_cast<std::uint8_t>(prefix_iter[0]));
+
+	TrieNode *cur(g_querywords[root_key]);
+	/*if (!cur)
+		return ret;*/
+	prefix_iter += 1;
+
+	while (prefix.cend() - prefix_iter >= 4)
+	{
+		TrieNode *child{nullptr};
+		std::uint32_t key((static_cast<std::uint8_t>(prefix_iter[3]) << 24) | (static_cast<std::uint8_t>(prefix_iter[2]) << 16) | (static_cast<std::uint8_t>(prefix_iter[1]) << 8) | static_cast<std::uint8_t>(prefix_iter[0]));
+		for (auto const &[ch, mask, nnode] : cur->children)
+		{
+			if (key == ch)
+			{
+				child = nnode;
+				prefix_iter += 4;
+				break;
+			}
+		}
+		if (!child)
+			return ret;
+		else
+			cur = child;
+	}
+
+	auto cmp([](TrieNode *a, TrieNode *b) {
+		return a->count < b->count;
+	});
+
+	std::priority_queue<TrieNode *, std::vector<TrieNode *>, decltype(cmp)> q;
+	std::uint32_t key{0};
+	ptrdiff_t remaining_length(prefix.cend() - prefix_iter);
+	std::uint32_t mask((1u << (remaining_length * 8)) - 1u);
+	for (ptrdiff_t i(0); i < remaining_length; ++i)
+		key |= static_cast<std::uint8_t>(prefix_iter[i]) << (i * 8);
+	for (auto const &[ch, mask_, nnode] : cur->children)
+		if ((key & mask) == (ch & mask))
+			q.push(nnode);
+
+	while (!q.empty())
+	{
+		auto node(q.top());
+		q.pop();
+
+		if (node->keyword)
+		{
+			// we are at leaf
+			if (used_tags.count(node->keyword->tagid) > 0)
+				continue;
+			ret.emplace_back(g_tags[node->keyword->tagid].get());
+			if (ret.size() == max_words)
+				return ret;
+		}
+		else
+		{
+			for (auto const &[ch, mask_, nnode] : node->children)
+				q.push(nnode);
+		}
+	}
+
+	return ret;
+}
+
 
 std::vector<std::string> get_all_suffix(std::string const &keyword)
 {
