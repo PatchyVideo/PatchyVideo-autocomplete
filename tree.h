@@ -564,13 +564,13 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t
 					{
 						auto const &keyword_obj(tag_obj->lang_keywords[ul]);
 						std::string const &keyword(keyword_obj->keyword);
-						//if (keyword.find(prefix) != std::string::npos)
-						//{
-						ret.emplace_back(keyword_obj);
-						used_tags.emplace(node->keyword->tagid);
-						found = true;
-						break;
-						//}
+						if (keyword.find(prefix) != std::string::npos)
+						{
+							ret.emplace_back(keyword_obj);
+							used_tags.emplace(node->keyword->tagid);
+							found = true;
+							break;
+						}
 					}
 				}
 				if (!found)
