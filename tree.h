@@ -6,6 +6,8 @@
 #include <queue>
 #include <set>
 #include <bitset>
+#include <coroutine>
+#include <algorithm>
 
 template<typename T>
 struct PrintSizeof
@@ -17,6 +19,13 @@ struct PrintSizeof
 		PrintSizeof_impl<sizeof(T)> a;
 	}
 };
+
+char to_lower(char ch)
+{
+	if (ch >= 'A' && ch <= 'Z')
+		return ch - 'A' + 'a';
+	return ch;
+}
 
 struct Keyword;
 
@@ -490,8 +499,10 @@ std::vector<std::vector<std::uint32_t>> const g_lang_perference = {
 	{"VIN"_lang}
 };
 
-auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t user_language = 0)
+auto QueryWord(std::string const &prefix_case_sensitive, std::uint32_t max_words, std::uint32_t user_language = 0)
 {
+	auto prefix(prefix_case_sensitive);
+	std::transform(prefix_case_sensitive.begin(), prefix_case_sensitive.end(), prefix.begin(), to_lower);
 	user_language = std::min(user_language, static_cast<std::uint32_t>(g_lang_perference.size()) - 1);
 	std::vector<Keyword *> ret{};
 	std::set<std::uint32_t> used_tags;
@@ -592,8 +603,10 @@ auto QueryWord(std::string const &prefix, std::uint32_t max_words, std::uint32_t
 	return ret;
 }
 
-auto QueryWordTagObject(std::string const &prefix, std::uint32_t max_words)
+auto QueryWordTagObject(std::string const &prefix_case_sensitive, std::uint32_t max_words)
 {
+	auto prefix(prefix_case_sensitive);
+	std::transform(prefix_case_sensitive.begin(), prefix_case_sensitive.end(), prefix.begin(), to_lower);
 	std::vector<Tag *> ret{};
 	std::set<std::uint32_t> used_tags;
 	ret.reserve(max_words);
@@ -665,8 +678,10 @@ auto QueryWordTagObject(std::string const &prefix, std::uint32_t max_words)
 }
 
 
-std::vector<std::string> get_all_suffix(std::string const &keyword)
+std::vector<std::string> get_all_suffix(std::string const &keyword_case_sensitive)
 {
+	auto keyword(keyword_case_sensitive);
+	std::transform(keyword_case_sensitive.begin(), keyword_case_sensitive.end(), keyword.begin(), to_lower);
 	std::vector<std::string> ret{};
 	ret.reserve(keyword.size());
 	for (auto it(keyword.begin()); it != keyword.end(); ++it)
