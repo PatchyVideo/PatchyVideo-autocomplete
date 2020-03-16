@@ -18,6 +18,7 @@ void ignore(T&&)
 *   POST /setcat         n tagid cat ...          return ""
 *   POST /deltag         tagid                    return ""
 *   POST /delword        word                     return ""
+*   POST /matchfirst     n words ...              return JSON[tagid,...]
 *   GET  /?q=<prefix>&n=<max_words>&l=<lang>      return JSON[{word,category,count},...]
 *   GET  /ql?q=<prefix>&n=<max_words>             return JSON[{category,count,langs:[{language,word},...],alias:[word,...]},...]
 */
@@ -326,6 +327,29 @@ inline void handle_request_delword(output &out, input &content)
 }
 
 template<fast_io::character_output_stream output, fast_io::character_input_stream input>
+inline void handle_request_matchfirst(output &out, input &content)
+{
+	std::size_t n(0);
+	std::vector<std::string> querys;
+	std::string query;
+	scan(content, n);
+	for (std::size_t i(0); i != n; ++i)
+	{
+		scan(content, query);
+		querys.emplace_back(query);
+	}
+	auto tagids(MatchFirstTags(querys));
+	std::size_t cnt{0};
+	print(out, u8"[");
+	for (std::uint32_t tagid : tagids) {
+		print(out, tagid);
+		if (++cnt < tagids.size())
+			print(out, u8",");
+	}
+	print(out, u8"]");
+}
+
+template<fast_io::character_output_stream output, fast_io::character_input_stream input>
 inline void handle_request(output &out, input &content, RequestMethod method, std::string const &path, std::unordered_map<std::string, std::string> const &params)
 {
 	std::string response_body;
@@ -367,6 +391,9 @@ inline void handle_request(output &out, input &content, RequestMethod method, st
 			break;
 		case hash("/delword"):
 			handle_request_delword(response_body_stream, content);
+			break;
+		case hash("/matchfirst"):
+			handle_request_matchfirst(response_body_stream, content);
 			break;
 		default:
 			abort(404);

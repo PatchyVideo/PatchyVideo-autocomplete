@@ -677,6 +677,18 @@ auto QueryWordTagObject(std::string const &prefix_case_sensitive, std::uint32_t 
 	return ret;
 }
 
+std::vector<std::uint32_t> MatchFirstTags(std::vector<std::string> const& querys)
+{
+	std::vector<std::uint32_t> ret;
+	ret.reserve(querys.size());
+	for (auto const& query : querys)
+	{
+		auto tags(QueryWordTagObject(query, 1));
+		if (tags.size() == 1)
+			ret.emplace_back(tags.front()->id);
+	}
+	return ret;
+}
 
 std::vector<std::string> get_all_suffix(std::string const &keyword_case_sensitive)
 {

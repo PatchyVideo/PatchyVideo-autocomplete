@@ -10,6 +10,7 @@ autocomplete part of PatchyVideo
 *   POST /setcat         n tagid cat ...          return ""
 *   POST /deltag         tagid                    return ""
 *   POST /delword        word                     return ""
+*   POST /matchfirst     n words ...              return JSON[tagid,...]
 *   GET  /?q=<prefix>&n=<max_words>&l=<lang>      return JSON[{word,category,count},...]
 *   GET  /ql?q=<prefix>&n=<max_words>             return JSON[{category,count,langs:[{language,word},...],alias:[word,...]},...]
 */
