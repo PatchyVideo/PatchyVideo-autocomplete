@@ -602,7 +602,6 @@ auto QueryWord(std::string const &prefix_case_sensitive, std::uint32_t max_words
 	return ret;
 }
 
-template 
 auto QueryWordTagObject(std::string const &prefix_case_sensitive, std::uint32_t max_words)
 {
 	auto prefix(prefix_case_sensitive);
