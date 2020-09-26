@@ -432,7 +432,7 @@ inline constexpr F input_floating(input& in)
 			throw std::overflow_error("exponent too large");
 	}
 	bool trailing_zeros{};
-	using std::log2p1;
+	//using std::log2p1;
 	signed_exponent_type e2(static_cast<signed_exponent_type>(log2p1(ipart))+m10e-(2+floating_trait::mantissa_bits));
 	mantissa_type m2{};
 	if(m10e<0)

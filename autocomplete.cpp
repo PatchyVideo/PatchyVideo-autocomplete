@@ -142,6 +142,9 @@ inline void handle_request_q(output &out, std::unordered_map<std::string, std::s
 		user_language = params.at("l");
 	if (prefix.size() < 1)
 		abort(400);
+	for (auto& ch : prefix)
+		if (ch == ' ')
+			ch = '_';
 	std::uint32_t max_words{10};
 	std::uint32_t user_lang_index{0};
 	fast_io::istring_view isv(max_words_str);
