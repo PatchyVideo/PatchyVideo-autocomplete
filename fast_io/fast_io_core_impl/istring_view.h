@@ -66,7 +66,7 @@ inline constexpr Iter receive(basic_istring_view<T>& istrvw,Iter begin,Iter end)
 		std::size_t const bytes((pe-pb)*sizeof(iter_value_type));
 		if(istrvw.str().size()<bytes)
 		{
-			std::size_t const need_copied();
+			std::size_t const need_copied{};
 			std::size_t const copied(istrvw.str().size()/sizeof(iter_value_type));
 			std::memcpy(pb,istrvw.str().data(),copied*sizeof(iter_value_type));
 			istrvw.str()={};

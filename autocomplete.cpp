@@ -191,11 +191,15 @@ inline void handle_request_ql(output &out, std::unordered_map<std::string, std::
 	print(out, u8"[");
 	for (std::size_t i(0); i != query_result.size(); ++i)
 	{
-		auto const& tagobj(*query_result[i]);
+		//auto const& tagobj(*query_result[i]);
+		auto [tagobj_ptr, keyword_ptr] = query_result[i];
+		auto const& tagobj(*tagobj_ptr);
+		auto const& keywordobj(*keyword_ptr);
 		print(out, u8"{");
 		//print(out, u8"{\"tag\":\"", key.keyword, u8"\",\"cat\":", g_tags[key.tagid]->category, u8",\"cnt\":", g_tags[key.tagid]->count, u8"}");
 		print(out, u8"\"cat\":", tagobj.category, u8",");
 		print(out, u8"\"cnt\":", tagobj.count, u8",");
+		print(out, u8"\"keyword\":\"", keywordobj.keyword, u8"\",");
 		print(out, u8"\"langs\":[");
 		std::size_t cnt(0);
 		for (auto const& [id, word] : tagobj.lang_keywords) {

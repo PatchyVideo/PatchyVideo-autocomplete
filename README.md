@@ -16,5 +16,5 @@ autocomplete part of PatchyVideo
 */
 ```
 # Compile
-1. [Download](https://github.com/gcc-mirror/gcc) and compile latest gcc 11
+1. [Download](https://github.com/gcc-mirror/gcc) and compile latest gcc 12
 2. ```./build.sh```

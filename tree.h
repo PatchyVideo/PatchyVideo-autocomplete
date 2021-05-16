@@ -606,7 +606,7 @@ auto QueryWordTagObject(std::string const &prefix_case_sensitive, std::uint32_t 
 {
 	auto prefix(prefix_case_sensitive);
 	std::transform(prefix_case_sensitive.begin(), prefix_case_sensitive.end(), prefix.begin(), to_lower);
-	std::vector<Tag *> ret{};
+	std::vector<std::pair<Tag *, Keyword*>> ret{};
 	std::set<std::uint32_t> used_tags;
 	ret.reserve(max_words);
 
@@ -661,7 +661,7 @@ auto QueryWordTagObject(std::string const &prefix_case_sensitive, std::uint32_t 
 			// we are at leaf
 			if (used_tags.count(node->keyword->tagid) > 0)
 				continue;
-			ret.emplace_back(g_tags[node->keyword->tagid].get());
+			ret.emplace_back(g_tags[node->keyword->tagid].get(), node->keyword);
 			used_tags.emplace(node->keyword->tagid);
 			if (ret.size() == max_words)
 				return ret;
@@ -684,7 +684,7 @@ std::vector<std::uint32_t> MatchFirstTags(std::vector<std::string> const& querys
 	{
 		auto tags(QueryWordTagObject(query, 1));
 		if (tags.size() == 1)
-			ret.emplace_back(tags.front()->id);
+			ret.emplace_back(std::get<0>(tags.front())->id);
 	}
 	return ret;
 }
