@@ -1,0 +1,19 @@
+[log]
+path = "/tmp/autocomplete-log"
+rotation = "Daily"
+log_level = "debug"
+enable_log_file = false
+
+[general]
+addr = "0.0.0.0:8000"
+
+[language_preference]
+CHS = ["CHT", "JPN", "ENG"]
+CHT = ["JPN", "CHS", "ENG"]
+ENG = ["JPN"]
+JPN = ["CHT", "ENG", "CHS"]
+
+[mongodb]
+uri = "mongodb://0.0.0.0:27017"
+database = "patchyvideo"
+collection = "tags"
