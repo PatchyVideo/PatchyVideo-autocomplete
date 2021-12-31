@@ -19,7 +19,7 @@ use crate::{
         AddTagRequest, AddTagRequestCollection, AddWordRequest, AddWordRequestCollection,
         Languages, MatchFirstRequest, MatchFirstRequestCollection, QlResponse, RootResponse,
         SetCatRequest, SetCatRequestCollection, SetCountDiffRequest, SetCountDiffRequestCollection,
-        SetCountRequest, SetCountRequestCollection,
+        SetCountRequest, SetCountRequestCollection, QlResponseLanguages,
     },
     tagged_trie::TaggedTrie,
 };
@@ -207,7 +207,11 @@ pub async fn root(
     Query(params): Query<HashMap<String, String>>,
     Extension(context): Extension<Arc<AppContext>>,
 ) -> (StatusCode, Json<Value>) {
-    let maxn = params["n"].parse::<usize>().unwrap_or(10);
+    let maxn = if let Some(maxn) = params.get("n") {
+        maxn.parse::<usize>().unwrap_or(10)
+    } else {
+        10
+    };
     let prefix = params.get("q").tap_none(|| error!("No prefix provided"));
     if maxn == 0 || prefix.is_none() {
         return (StatusCode::OK, Json(json!(Vec::<RootResponse>::new())));
@@ -249,7 +253,7 @@ pub async fn root(
             Some(
                 RootResponse {
                     word: matched_keyword.clone(),
-                    category: tag.category,
+                    category: tag.category as _,
                     count: tag.count,
                 }
             )
@@ -267,7 +271,11 @@ pub async fn ql(
     Query(params): Query<HashMap<String, String>>,
     Extension(context): Extension<Arc<AppContext>>,
 ) -> (StatusCode, Json<Value>) {
-    let maxn = params["n"].parse::<usize>().unwrap_or(10);
+    let maxn = if let Some(maxn) = params.get("n") {
+        maxn.parse::<usize>().unwrap_or(10)
+    } else {
+        10
+    };
     let prefix = params.get("q").tap_none(|| error!("No prefix provided"));
     if maxn == 0 || prefix.is_none() {
         return (StatusCode::OK, Json(json!(Vec::<QlResponse>::new())));
@@ -292,10 +300,13 @@ pub async fn ql(
             }?;
             Some(
                 QlResponse {
-                    category: tag.category,
+                    category: tag.category as _,
                     count: tag.count,
                     matched_keyword: matched_keyword.clone(),
-                    langs: tag.languages,
+                    langs: tag.languages
+                        .iter()
+                        .map(|(k, v)| QlResponseLanguages { l: *k as _, w: v.clone() })
+                        .collect::<Vec<_>>(),
                     alias: tag.alias,
                 }
             )

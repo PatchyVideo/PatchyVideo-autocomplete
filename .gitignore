@@ -35,3 +35,6 @@
 # Added by cargo
 
 /target
+
+# docker
+*.tar
