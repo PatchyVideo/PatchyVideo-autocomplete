@@ -1,6 +1,10 @@
+
 # PatchyVideo-autocomplete
-autocomplete part of PatchyVideo
-# Usage
+
+Autocomplete part of PatchyVideo
+
+## API Reference
+
 ```C++
 /*
 *   POST /addtag         n tagid count cat ...    return ""
@@ -15,6 +19,11 @@ autocomplete part of PatchyVideo
 *   GET  /ql?q=<prefix>&n=<max_words>             return JSON[{category,count,matched keyword,langs:[{language,word},...],alias:[word,...]},...]
 */
 ```
-# Compile
-1. [Download](https://github.com/gcc-mirror/gcc) and compile latest gcc 12
-2. ```./build.sh```
+
+## Deployment
+
+To local run this project run
+
+```bash
+  make dev
+```
