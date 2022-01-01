@@ -7,6 +7,7 @@ use crate::schema::Languages;
 
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct IdLangPair(u32, Languages);
@@ -95,6 +96,7 @@ impl TaggedTrie {
         }
     }
 
+    #[instrument]
     pub fn find(&self, prefix: &str) -> Option<Vec<(Languages, Tag)>> {
         let res: Vec<(Languages, Tag)> = self
             .tries
@@ -110,6 +112,7 @@ impl TaggedTrie {
         Some(res)
     }
 
+    #[instrument]
     pub fn add_tags(&mut self, tags: &[Tag]) -> Result<()> {
         for tag in tags {
             self.add_tag(tag)?;
@@ -117,6 +120,7 @@ impl TaggedTrie {
         Ok(())
     }
 
+    #[instrument]
     pub fn add_tag(&mut self, tag: &Tag) -> Result<()> {
         if self.tags.contains_key(&tag.id) {
             return Err(anyhow!("Tag already exists, tag id: {}", tag.id));
@@ -151,6 +155,7 @@ impl TaggedTrie {
         Ok(())
     }
 
+    #[instrument]
     pub fn delete_tag(&mut self, tag_id: u32) -> Result<()> {
         let tag = self
             .tags
@@ -183,6 +188,7 @@ impl TaggedTrie {
         Ok(())
     }
 
+    #[instrument]
     pub fn delete_word(&mut self, word: &str) -> Result<()> {
         let tag_id = {
             self.keywords
@@ -200,6 +206,7 @@ impl TaggedTrie {
         Ok(())
     }
 
+    #[instrument]
     pub fn add_word(&mut self, tag_id: u32, word: &str, lang: &Languages) -> Result<()> {
         let id_bit = IdLangPairBits::from(IdLangPair(tag_id, *lang)).0;
 

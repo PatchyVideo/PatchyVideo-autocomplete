@@ -10,21 +10,22 @@ use std::{
     sync::Arc,
 };
 use tap::TapOptional;
-use tracing::{error, info};
+use tracing::{debug, error, info, instrument};
 
 use crate::{
     config::AppContext,
     db::Tag,
     schema::{
         AddTagRequest, AddTagRequestCollection, AddWordRequest, AddWordRequestCollection,
-        Languages, MatchFirstRequest, MatchFirstRequestCollection, QlResponse, RootResponse,
-        SetCatRequest, SetCatRequestCollection, SetCountDiffRequest, SetCountDiffRequestCollection,
-        SetCountRequest, SetCountRequestCollection, QlResponseLanguages,
+        Languages, MatchFirstRequest, MatchFirstRequestCollection, QlResponse, QlResponseLanguages,
+        RootResponse, SetCatRequest, SetCatRequestCollection, SetCountDiffRequest,
+        SetCountDiffRequestCollection, SetCountRequest, SetCountRequestCollection,
     },
     tagged_trie::TaggedTrie,
 };
 use anyhow::{anyhow, Result};
 
+#[instrument(skip(context))]
 pub async fn add_tag(
     AddTagRequestCollection(req): AddTagRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -65,6 +66,7 @@ pub async fn add_tag(
     }
 }
 
+#[instrument(skip(context))]
 pub async fn add_word(
     AddWordRequestCollection(reqs): AddWordRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -84,6 +86,7 @@ pub async fn add_word(
     (StatusCode::OK, "Successfully add words".to_owned())
 }
 
+#[instrument(skip(context))]
 pub async fn set_count(
     SetCountRequestCollection(reqs): SetCountRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -102,6 +105,7 @@ pub async fn set_count(
     (StatusCode::OK, "Successfully update the counts".to_owned())
 }
 
+#[instrument(skip(context))]
 pub async fn set_count_diff(
     SetCountDiffRequestCollection(reqs): SetCountDiffRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -120,6 +124,7 @@ pub async fn set_count_diff(
     (StatusCode::OK, "Successfully update the counts".to_owned())
 }
 
+#[instrument(skip(context))]
 pub async fn set_cat(
     SetCatRequestCollection(reqs): SetCatRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -141,6 +146,7 @@ pub async fn set_cat(
     )
 }
 
+#[instrument(skip(context))]
 pub async fn del_tag(
     req: String,
     Extension(context): Extension<Arc<AppContext>>,
@@ -169,6 +175,7 @@ pub async fn del_tag(
     }
 }
 
+#[instrument(skip(context))]
 pub async fn del_word(
     word: String,
     Extension(context): Extension<Arc<AppContext>>,
@@ -183,6 +190,7 @@ pub async fn del_word(
     }
 }
 
+#[instrument(skip(context))]
 pub async fn match_first(
     MatchFirstRequestCollection(reqs): MatchFirstRequestCollection,
     Extension(context): Extension<Arc<AppContext>>,
@@ -203,6 +211,7 @@ pub async fn match_first(
     (StatusCode::OK, Json(json!(res)))
 }
 
+#[instrument(skip(context))]
 pub async fn root(
     Query(params): Query<HashMap<String, String>>,
     Extension(context): Extension<Arc<AppContext>>,
@@ -226,6 +235,8 @@ pub async fn root(
             }
         }
     };
+
+    debug!("Retrived with prefix: {}, get tags: {:?}", prefix, tags);
 
     // Filtered by l
     if let Some(preferred_lang) = params.get("l") {
@@ -267,6 +278,7 @@ pub async fn root(
     (StatusCode::OK, Json(json!(res)))
 }
 
+#[instrument(skip(context))]
 pub async fn ql(
     Query(params): Query<HashMap<String, String>>,
     Extension(context): Extension<Arc<AppContext>>,
@@ -291,6 +303,8 @@ pub async fn ql(
             }
         }
     };
+
+    debug!("Retrived with prefix: {}, get tags: {:?}", prefix, tags);
 
     let mut res = tags.into_iter()
         .filter_map(|(lang, tag)| {

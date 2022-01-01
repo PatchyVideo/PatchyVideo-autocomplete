@@ -53,7 +53,7 @@ mod tests {
         body::Body,
         http::{self, Request, StatusCode},
     };
-    use itertools::{Iterate, Itertools};
+    use itertools::Itertools;
     use maplit::{hashmap, hashset};
     use parking_lot::RwLock;
     use serde_json::{json, Value};
