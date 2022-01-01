@@ -1,4 +1,4 @@
-use std::collections::{HashSet};
+use std::collections::HashSet;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use patchy_video_autocomplete_macros::{FromStrEnum, ParseRequest};
@@ -43,7 +43,7 @@ pub struct MatchFirstRequest {
     pub word: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RootResponse {
     #[serde(rename(serialize = "tag"))]
     pub word: String,
@@ -53,19 +53,19 @@ pub struct RootResponse {
     pub count: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct QlResponseLanguages {
     pub l: u32,
-    pub w: String
+    pub w: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct QlResponse {
-    #[serde(rename(serialize = "cat"))]
+    #[serde(rename = "cat")]
     pub category: u32,
-    #[serde(rename(serialize = "cnt"))]
+    #[serde(rename = "cnt")]
     pub count: u32,
-    #[serde(rename(serialize = "keyword"))]
+    #[serde(rename = "keyword")]
     pub matched_keyword: String,
     pub langs: Vec<QlResponseLanguages>,
     pub alias: HashSet<String>,

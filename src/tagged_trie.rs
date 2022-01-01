@@ -100,8 +100,9 @@ impl TaggedTrie {
             .tries
             .common_prefix_predict(&prefix.to_ascii_lowercase())? // make keyword to be lowercase for better experience
             .iter()
-            .filter_map(|(id_bits, _)| {
-                let IdLangPair(tag_id, lang) = IdLangPairBits(*id_bits).into();
+            .map(|(id_bits, _)| IdLangPair::from(IdLangPairBits(*id_bits)))
+            .unique_by(|&IdLangPair(tag_id, _)| tag_id)
+            .filter_map(|IdLangPair(tag_id, lang)| {
                 let tag = self.tags.get(&tag_id)?.clone();
                 Some((lang, tag))
             })
@@ -268,6 +269,8 @@ mod tests {
                 alias: hashset!["黑白".to_owned()],
                 languages: hashmap! {
                     Languages::CHS => "雾雨魔理沙".to_owned(),
+                    Languages::CHT => "霧雨魔理沙".to_owned(),
+                    Languages::JPN => "霧雨魔理沙".to_owned(),
                 },
             },
             Tag {
@@ -441,6 +444,21 @@ mod tests {
                 .map(|(_, tag)| tag.id)
                 .collect::<Vec<_>>(),
             empty_array
+        );
+    }
+    #[test]
+    fn test_find_with_dup() {
+        let tags = setup_tags();
+        let tagged_trie = TaggedTrie::build_with_tags(&tags);
+
+        assert_eq!(
+            tagged_trie
+                .find("霧雨魔理沙")
+                .unwrap()
+                .iter()
+                .map(|(lang, tag)| { (lang, tag.id) })
+                .collect::<Vec<_>>(),
+            vec![(&Languages::JPN, 2)]
         );
     }
 }

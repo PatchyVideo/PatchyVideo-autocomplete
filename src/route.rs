@@ -46,13 +46,14 @@ mod tests {
     use crate::{
         config::{AppContext, Config},
         db::Tag,
-        schema::{Category, Languages},
+        schema::{Category, Languages, QlResponse},
         tagged_trie::TaggedTrie,
     };
     use axum::{
         body::Body,
         http::{self, Request, StatusCode},
     };
+    use itertools::{Iterate, Itertools};
     use maplit::{hashmap, hashset};
     use parking_lot::RwLock;
     use serde_json::{json, Value};
@@ -81,6 +82,8 @@ mod tests {
                 alias: hashset!["黑白".to_owned()],
                 languages: hashmap! {
                     Languages::CHS => "雾雨魔理沙".to_owned(),
+                    Languages::CHT => "霧雨魔理沙".to_owned(),
+                    Languages::JPN => "霧雨魔理沙".to_owned(),
                 },
             },
             Tag {
@@ -355,14 +358,14 @@ mod tests {
         assert_eq!(
             body,
             json!([{
-                "word": "东方",
-                "category": "Copyright",
-                "count": 4
+                "tag": "东方",
+                "cat": 2,
+                "cnt": 4
             },
             {
-                "word": "东风谷早苗",
-                "category": "Character",
-                "count": 3
+                "tag": "东风谷早苗",
+                "cat": 1,
+                "cnt": 3
             }])
         )
     }
@@ -391,29 +394,40 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        let body: Value = serde_json::from_slice(&body).unwrap();
+        let ql_resps: Vec<QlResponse> = serde_json::from_slice(&body).unwrap();
+
+        let ql_resps = ql_resps
+            .into_iter()
+            .map(|mut ql| {
+                ql.langs.sort_by_key(|lang| lang.l);
+                ql
+            })
+            .collect_vec();
 
         assert_eq!(
-            body,
+            serde_json::to_value(ql_resps).unwrap(),
             json!([{
-                "category": "Copyright",
-                "count": 4,
-                "matched_keyword": "东方",
-                "langs": {
-                    "CHS": "东方",
-                    "ENG": "Touhou"
-                },
+                "cat": 2,
+                "cnt": 4,
+                "keyword": "东方",
+                "langs": [
+                    {"l": 1, "w": "东方"},
+                    {"l": 5, "w": "Touhou"},
+                ],
                 "alias": [
                     "车万"
                 ]
             },
             {
-                "category": "Character",
-                "count": 3,
-                "matched_keyword": "东风谷早苗",
-                "langs": {
-                    "CHS": "东风谷早苗",
-                },
+                "cat": 1,
+                "cnt": 3,
+                "keyword": "东风谷早苗",
+                "langs": [
+                    {
+                        "l": 1,
+                        "w": "东风谷早苗"
+                    }
+                ],
                 "alias": []
             }])
         )
