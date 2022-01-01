@@ -23,4 +23,5 @@
 **/values.dev.yaml
 LICENSE
 README.md
-target/
+target/*
+!target/x86_64-unknown-linux-musl/release/patchy_video_autocomplete_server
