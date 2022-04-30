@@ -266,6 +266,7 @@ pub async fn root(
                     word: matched_keyword.clone(),
                     category: tag.category as _,
                     count: tag.count,
+                    tagid: tag.id,
                 }
             )
         })
@@ -316,6 +317,7 @@ pub async fn ql(
                 QlResponse {
                     category: tag.category as _,
                     count: tag.count,
+                    tagid: tag.id,
                     matched_keyword: matched_keyword.clone(),
                     langs: tag.languages
                         .iter()

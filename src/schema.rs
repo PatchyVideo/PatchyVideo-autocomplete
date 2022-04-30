@@ -51,6 +51,8 @@ pub struct RootResponse {
     pub category: u32,
     #[serde(rename(serialize = "cnt"))]
     pub count: u32,
+    #[serde(rename(serialize = "id"))]
+    pub tagid: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,6 +69,8 @@ pub struct QlResponse {
     pub count: u32,
     #[serde(rename = "keyword")]
     pub matched_keyword: String,
+    #[serde(rename = "id")]
+    pub tagid: u32,
     pub langs: Vec<QlResponseLanguages>,
     pub alias: HashSet<String>,
 }
